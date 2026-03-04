@@ -28,8 +28,30 @@
         <input type="password" id="login-password" required autocomplete="current-password" placeholder="Password" />
       </div>
       <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+      <p class="auth-toggle"><a href="#" id="show-forgot">Forgot Password?</a></p>
       <p class="auth-toggle">Don't have an account? <a href="#" id="show-register">Create Account</a></p>
     </form>
+
+    <!-- Forgot Password Form -->
+    <div id="forgot-form" class="auth-form hidden">
+      <h2>Reset Password</h2>
+      <p class="password-change-message">Enter your email address and we'll generate a temporary password.</p>
+      <form id="forgot-password-form">
+        <div class="form-group">
+          <label for="forgot-email">Email</label>
+          <input type="email" id="forgot-email" required placeholder="you@clinic.com" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Reset Password</button>
+      </form>
+      <div id="forgot-result" class="hidden" style="margin-top:16px;">
+        <div class="password-requirements" style="background:var(--success-light);color:var(--success);">
+          <strong>Temporary password:</strong>
+          <code id="forgot-temp-pw" style="font-size:15px;letter-spacing:1px;"></code>
+          <p style="margin-top:6px;font-size:11.5px;">Use this to sign in. You will be prompted to change it immediately.</p>
+        </div>
+      </div>
+      <p class="auth-toggle"><a href="#" id="forgot-back-login">Back to Sign In</a></p>
+    </div>
 
     <!-- Registration Form -->
     <form id="register-form" class="auth-form hidden" autocomplete="on">

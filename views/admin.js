@@ -140,10 +140,11 @@ function renderUsersTab(container) {
         actions += `<button class="btn btn-primary btn-sm" onclick="handleReactivateUser('${u.id}')">Activate</button> `;
       }
       if (role === 'user' && status === 'active') {
-        actions += `<button class="btn btn-secondary btn-sm" onclick="handlePromoteUser('${u.id}')">Promote</button>`;
+        actions += `<button class="btn btn-secondary btn-sm" onclick="handlePromoteUser('${u.id}')">Promote</button> `;
       } else if (role === 'admin' && status === 'active') {
-        actions += `<button class="btn btn-secondary btn-sm" onclick="handleDemoteUser('${u.id}')">Demote</button>`;
+        actions += `<button class="btn btn-secondary btn-sm" onclick="handleDemoteUser('${u.id}')">Demote</button> `;
       }
+      actions += `<button class="btn btn-secondary btn-sm" onclick="handleAdminResetPassword('${u.id}')">Reset PW</button>`;
     } else {
       actions = '<span style="color:var(--text-muted);font-size:0.85rem;">You</span>';
     }
@@ -177,6 +178,35 @@ function handleDeactivateUser(targetUserId) {
       deactivateUser(targetUserId, admin.id);
       showToast('User deactivated.', 'success');
       renderUsersTab(document.getElementById('admin-content'));
+    }
+  });
+}
+
+async function handleAdminResetPassword(targetUserId) {
+  const admin = getSessionUser();
+  if (!admin) return;
+  const target = getUser(targetUserId);
+  if (!target) return;
+  confirmAction({
+    title: 'Reset Password',
+    message: 'Generate a temporary password for ' + (target.email || 'this user') + '? They will be required to change it on next login.',
+    confirmLabel: 'Reset Password',
+    onConfirm: async () => {
+      const tempPw = await resetPasswordForUser(targetUserId, admin.id);
+      if (tempPw) {
+        openModal({
+          title: 'Temporary Password',
+          bodyHTML: `
+            <p>A temporary password has been generated for <strong>${escapeHTML(target.email)}</strong>.</p>
+            <div style="margin:16px 0;padding:12px 16px;background:var(--success-light);border-radius:6px;font-size:18px;letter-spacing:1.5px;text-align:center;font-family:monospace;color:var(--success);">
+              ${escapeHTML(tempPw)}
+            </div>
+            <p style="font-size:12px;color:var(--text-muted);">Share this password securely. The user will be required to change it on next login.</p>
+          `,
+          footerHTML: '<button class="btn btn-primary" onclick="closeModal()">Done</button>',
+        });
+        renderUsersTab(document.getElementById('admin-content'));
+      }
     }
   });
 }

@@ -1151,6 +1151,30 @@ async function changePassword(userId, newPassword) {
   return true;
 }
 
+function generateTempPassword() {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghjkmnpqrstuvwxyz';
+  const digits = '23456789';
+  let pw = '';
+  pw += upper[Math.floor(Math.random() * upper.length)];
+  pw += lower[Math.floor(Math.random() * lower.length)];
+  pw += digits[Math.floor(Math.random() * digits.length)];
+  const all = upper + lower + digits;
+  for (let i = 0; i < 5; i++) pw += all[Math.floor(Math.random() * all.length)];
+  return pw.split('').sort(() => Math.random() - 0.5).join('');
+}
+
+async function resetPasswordForUser(userId, initiatorId) {
+  const user = getUser(userId);
+  if (!user) return null;
+  const tempPw = generateTempPassword();
+  const passwordHash = await hashPassword(tempPw);
+  saveUser({ id: userId, passwordHash, mustChangePassword: true });
+  const who = initiatorId ? (getUser(initiatorId) || {}).email || 'admin' : 'self-service';
+  logSystemAudit('PASSWORD_RESET', initiatorId || userId, userId, 'Password reset by ' + who, user.email);
+  return tempPw;
+}
+
 function approveUser(targetUserId, adminUserId) {
   const target = getUser(targetUserId);
   const admin = getUser(adminUserId);

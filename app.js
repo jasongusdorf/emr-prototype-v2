@@ -329,6 +329,7 @@ function showLogin() {
   document.getElementById('register-form').classList.add('hidden');
   document.getElementById('pending-screen').classList.add('hidden');
   document.getElementById('password-change-screen').classList.add('hidden');
+  document.getElementById('forgot-form').classList.add('hidden');
 }
 
 function initLoginDarkToggle() {
@@ -573,6 +574,7 @@ async function init() {
   initRegisterForm();
   initLogout();
   initPendingSignout();
+  initForgotPassword();
   initForcePasswordChange();
 
   if (isAuthenticated()) {
@@ -600,6 +602,49 @@ function initPendingSignout() {
       logout();
       showLogin();
       showToast('Signed out.');
+    });
+  }
+}
+
+function initForgotPassword() {
+  const showForgot = document.getElementById('show-forgot');
+  if (showForgot) {
+    showForgot.addEventListener('click', e => {
+      e.preventDefault();
+      document.getElementById('login-form').classList.add('hidden');
+      document.getElementById('forgot-form').classList.remove('hidden');
+      document.getElementById('forgot-result').classList.add('hidden');
+    });
+  }
+
+  const backBtn = document.getElementById('forgot-back-login');
+  if (backBtn) {
+    backBtn.addEventListener('click', e => {
+      e.preventDefault();
+      document.getElementById('forgot-form').classList.add('hidden');
+      document.getElementById('login-form').classList.remove('hidden');
+    });
+  }
+
+  const form = document.getElementById('forgot-password-form');
+  if (form) {
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const email = document.getElementById('forgot-email').value.trim();
+      if (!email) { showToast('Please enter your email.', 'error'); return; }
+
+      const user = getUserByEmail(email);
+      if (!user) {
+        showToast('If an account exists with that email, a reset has been initiated.', 'success');
+        return;
+      }
+
+      const tempPw = await resetPasswordForUser(user.id, null);
+      if (tempPw) {
+        document.getElementById('forgot-temp-pw').textContent = tempPw;
+        document.getElementById('forgot-result').classList.remove('hidden');
+        showToast('Temporary password generated.', 'success');
+      }
     });
   }
 }
