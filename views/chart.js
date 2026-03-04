@@ -10,6 +10,7 @@ let _notesView             = 'grouped'; // 'grouped' | 'timeline'
 let _searchOpen            = false;
 let _pendingScrollSection  = null;
 let _currentOverviewSubTab = 'all';
+let _currentEncSubTab      = 'notes';  // 'profile' | 'notes'
 
 /* ---------- Constants ---------- */
 const VISIT_TYPES = {
@@ -602,6 +603,77 @@ function buildOverviewContent(app, patient, patientId) {
    ENCOUNTER TAB CONTENT (Outpatient / Inpatient / Emergency)
    ============================================================ */
 function buildEncounterTabContent(container, patientId, visitType) {
+  // Sub-tab bar: Profile | Notes
+  const subBar = document.createElement('div');
+  subBar.className = 'chart-subtab-bar';
+
+  const encSubTabs = [
+    { key: 'profile', label: 'Profile' },
+    { key: 'notes',   label: 'Notes' },
+  ];
+
+  encSubTabs.forEach(({ key, label }) => {
+    const btn = document.createElement('button');
+    btn.className = 'chart-subtab' + (_currentEncSubTab === key ? ' active' : '');
+    btn.setAttribute('data-omr-color', key === 'profile' ? 'profile' : 'orders');
+    btn.textContent = label;
+
+    // Badge count for notes
+    if (key === 'notes') {
+      const count = getEncountersByPatient(patientId).filter(e => e.visitType === visitType).length;
+      if (count > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'tab-count';
+        badge.textContent = count;
+        btn.appendChild(badge);
+      }
+    }
+
+    btn.addEventListener('click', () => {
+      _currentEncSubTab = key;
+      subBar.querySelectorAll('.chart-subtab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      // Re-render content area
+      const contentArea = document.getElementById('enc-tab-content');
+      if (contentArea) {
+        contentArea.innerHTML = '';
+        if (key === 'profile') {
+          _buildEncProfileContent(contentArea, patientId);
+        } else {
+          _buildEncNotesContent(contentArea, patientId, visitType);
+        }
+      }
+    });
+    subBar.appendChild(btn);
+  });
+
+  container.appendChild(subBar);
+
+  // Content area
+  const contentArea = document.createElement('div');
+  contentArea.id = 'enc-tab-content';
+  container.appendChild(contentArea);
+
+  if (_currentEncSubTab === 'profile') {
+    _buildEncProfileContent(contentArea, patientId);
+  } else {
+    _buildEncNotesContent(contentArea, patientId, visitType);
+  }
+}
+
+/* ---------- Encounter tab → Profile sub-tab ---------- */
+function _buildEncProfileContent(container, patientId) {
+  const patient = getPatient(patientId);
+  if (!patient) return;
+  container.appendChild(buildDemographicsCard(patient, patientId));
+  container.appendChild(buildVitalsTrendCard(patientId));
+  container.appendChild(buildAllergiesCard(patientId));
+  container.appendChild(buildProblemsCard(patientId));
+  container.appendChild(buildMedicationsCard(patientId));
+}
+
+/* ---------- Encounter tab → Notes sub-tab ---------- */
+function _buildEncNotesContent(container, patientId, visitType) {
   const allEncs = getEncountersByPatient(patientId)
     .filter(e => e.visitType === visitType)
     .sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
