@@ -38,6 +38,9 @@ function renderEncounter(encounterId) {
   });
   setActiveNav('dashboard');
 
+  // Patient identity banner
+  if (patient) app.appendChild(buildPatientBanner(patient.id));
+
   /* ---------- Context bar ---------- */
   const ctxBar = document.createElement('div');
   ctxBar.className = 'encounter-context-bar';
@@ -237,9 +240,14 @@ function renderEncounter(encounterId) {
     lastModEl.textContent = note.lastModified ? 'Last saved: ' + formatDateTime(note.lastModified) : '';
 
     const signBtn = makeEncBtn('Sign Note', 'btn btn-success', () => {
+      if (!canSignNotes()) { showToast('Only attending physicians can sign notes.', 'error'); return; }
       if (!getProviders().length) { showToast('Add a provider first.', 'error'); return; }
       signArea.style.display = signArea.style.display === 'none' ? 'block' : 'none';
     });
+    if (!canSignNotes()) {
+      signBtn.disabled = true;
+      signBtn.title = 'Only attending physicians can sign notes';
+    }
 
     footer.appendChild(lastModEl); footer.appendChild(signBtn);
     noteCard.appendChild(footer);

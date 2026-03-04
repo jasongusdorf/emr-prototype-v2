@@ -505,9 +505,7 @@ const MEDICATION_DB = [
   { generic:'Famotidine', brands:['Pepcid'], drugClass:'H2 Blocker', schedule:null,
     doseForms:[{dose:'10',unit:'mg',route:'PO',defaultFreq:'BID'},{dose:'20',unit:'mg',route:'PO',defaultFreq:'BID'},{dose:'40',unit:'mg',route:'PO',defaultFreq:'QDay'},{dose:'20',unit:'mg',route:'IV',defaultFreq:'Q12h'}],
     defaultDoseIndex:1, commonIndications:['GERD','Peptic Ulcer','Heartburn'], allergyTags:['famotidine'] },
-  { generic:'Ranitidine', brands:['Zantac'], drugClass:'H2 Blocker', schedule:null,
-    doseForms:[{dose:'150',unit:'mg',route:'PO',defaultFreq:'BID'},{dose:'300',unit:'mg',route:'PO',defaultFreq:'QDay'}],
-    defaultDoseIndex:0, commonIndications:['GERD','Peptic Ulcer'], allergyTags:['ranitidine'] },
+  // Ranitidine (Zantac) removed — FDA-withdrawn April 2020 due to NDMA contamination
   { generic:'Ondansetron', brands:['Zofran'], drugClass:'Antiemetic', schedule:null,
     doseForms:[{dose:'4',unit:'mg',route:'PO',defaultFreq:'Q8h'},{dose:'8',unit:'mg',route:'PO',defaultFreq:'Q8h'},{dose:'4',unit:'mg',route:'IV',defaultFreq:'Q8h'}],
     defaultDoseIndex:0, commonIndications:['Nausea','Vomiting'], allergyTags:['ondansetron'] },
@@ -675,10 +673,10 @@ const MEDICATION_DB = [
     doseForms:[{dose:'2.5',unit:'mg',route:'PO',defaultFreq:'PRN'}],
     defaultDoseIndex:0, commonIndications:['Migraine','Menstrual Migraine'], allergyTags:['frovatriptan','triptan'] },
   { generic:'Erenumab', brands:['Aimovig'], drugClass:'CGRP Antagonist', schedule:null,
-    doseForms:[{dose:'70',unit:'mg',route:'SQ',defaultFreq:'QWeek'},{dose:'140',unit:'mg',route:'SQ',defaultFreq:'QWeek'}],
+    doseForms:[{dose:'70',unit:'mg',route:'SQ',defaultFreq:'QMonth'},{dose:'140',unit:'mg',route:'SQ',defaultFreq:'QMonth'}],
     defaultDoseIndex:0, commonIndications:['Migraine Prophylaxis'], allergyTags:['erenumab','cgrp antagonist'] },
   { generic:'Fremanezumab', brands:['Ajovy'], drugClass:'CGRP Antagonist', schedule:null,
-    doseForms:[{dose:'225',unit:'mg',route:'SQ',defaultFreq:'QWeek'},{dose:'675',unit:'mg',route:'SQ',defaultFreq:'QWeek'}],
+    doseForms:[{dose:'225',unit:'mg',route:'SQ',defaultFreq:'QMonth'},{dose:'675',unit:'mg',route:'SQ',defaultFreq:'Q3months'}],
     defaultDoseIndex:0, commonIndications:['Migraine Prophylaxis'], allergyTags:['fremanezumab','cgrp antagonist'] },
 
   // ── Neurology: Parkinson's Disease ──
@@ -749,7 +747,7 @@ const MEDICATION_DB = [
     doseForms:[{dose:'0.35',unit:'mg',route:'PO',defaultFreq:'QDay'}],
     defaultDoseIndex:0, commonIndications:['Contraception'], allergyTags:['norethindrone','progestin'] },
   { generic:'Medroxyprogesterone', brands:['Provera','Depo-Provera'], drugClass:'Progestin', schedule:null,
-    doseForms:[{dose:'2.5',unit:'mg',route:'PO',defaultFreq:'QDay'},{dose:'5',unit:'mg',route:'PO',defaultFreq:'QDay'},{dose:'10',unit:'mg',route:'PO',defaultFreq:'QDay'},{dose:'150',unit:'mg',route:'IM',defaultFreq:'QWeek'}],
+    doseForms:[{dose:'2.5',unit:'mg',route:'PO',defaultFreq:'QDay'},{dose:'5',unit:'mg',route:'PO',defaultFreq:'QDay'},{dose:'10',unit:'mg',route:'PO',defaultFreq:'QDay'},{dose:'150',unit:'mg',route:'IM',defaultFreq:'Q3months'}],
     defaultDoseIndex:1, commonIndications:['Abnormal Uterine Bleeding','Contraception','Amenorrhea'], allergyTags:['medroxyprogesterone','progestin'] },
   { generic:'Etonogestrel/Ethinyl Estradiol', brands:['NuvaRing'], drugClass:'Vaginal Contraceptive', schedule:null,
     doseForms:[{dose:'0.12/0.015',unit:'mg/day',route:'Other',defaultFreq:'QWeek'}],
@@ -784,8 +782,8 @@ const MEDICATION_DB = [
     doseForms:[{dose:'80',unit:'mg',route:'IV',defaultFreq:'Q8h'},{dose:'300',unit:'mg',route:'Inhaled',defaultFreq:'BID'}],
     defaultDoseIndex:0, commonIndications:['Gram-Negative Infection','CF Pulmonary'], allergyTags:['tobramycin','aminoglycoside'] },
   { generic:'Amikacin', brands:['Amikin'], drugClass:'Aminoglycoside', schedule:null,
-    doseForms:[{dose:'15',unit:'mg',route:'IV',defaultFreq:'QDay'}],
-    defaultDoseIndex:0, commonIndications:['Gram-Negative Infection','Mycobacterial'], allergyTags:['amikacin','aminoglycoside'] },
+    doseForms:[{dose:'15',unit:'mg/kg',route:'IV',defaultFreq:'QDay'}],
+    defaultDoseIndex:0, commonIndications:['Gram-Negative Infection','Mycobacterial'], allergyTags:['amikacin','aminoglycoside'], weightBased:true },
 
   // ── Infectious Disease: Carbapenems ──
   { generic:'Meropenem', brands:['Merrem'], drugClass:'Carbapenem', schedule:null,
@@ -817,8 +815,8 @@ const MEDICATION_DB = [
     doseForms:[{dose:'600',unit:'mg',route:'PO',defaultFreq:'Q12h'},{dose:'600',unit:'mg',route:'IV',defaultFreq:'Q12h'}],
     defaultDoseIndex:0, commonIndications:['MRSA','VRE','Nosocomial Pneumonia'], allergyTags:['linezolid'] },
   { generic:'Daptomycin', brands:['Cubicin'], drugClass:'Lipopeptide', schedule:null,
-    doseForms:[{dose:'4',unit:'mg',route:'IV',defaultFreq:'QDay'},{dose:'6',unit:'mg',route:'IV',defaultFreq:'QDay'}],
-    defaultDoseIndex:0, commonIndications:['MRSA Bacteremia','Endocarditis','Skin Infection'], allergyTags:['daptomycin'] },
+    doseForms:[{dose:'4',unit:'mg/kg',route:'IV',defaultFreq:'QDay'},{dose:'6',unit:'mg/kg',route:'IV',defaultFreq:'QDay'}],
+    defaultDoseIndex:0, commonIndications:['MRSA Bacteremia','Endocarditis','Skin Infection'], allergyTags:['daptomycin'], weightBased:true },
   { generic:'Piperacillin/Tazobactam', brands:['Zosyn'], drugClass:'Penicillin/BLI', schedule:null,
     doseForms:[{dose:'3.375',unit:'g',route:'IV',defaultFreq:'Q6h'},{dose:'4.5',unit:'g',route:'IV',defaultFreq:'Q6h'}],
     defaultDoseIndex:1, commonIndications:['Intra-abdominal Infection','Nosocomial Pneumonia','Sepsis'], allergyTags:['piperacillin','tazobactam','penicillin','beta-lactam'] },
@@ -858,8 +856,8 @@ const MEDICATION_DB = [
     doseForms:[{dose:'250',unit:'mg',route:'PO',defaultFreq:'QDay'}],
     defaultDoseIndex:0, commonIndications:['Onychomycosis','Tinea'], allergyTags:['terbinafine'] },
   { generic:'Amphotericin B', brands:['Abelcet','AmBisome'], drugClass:'Antifungal', schedule:null,
-    doseForms:[{dose:'3',unit:'mg',route:'IV',defaultFreq:'QDay'},{dose:'5',unit:'mg',route:'IV',defaultFreq:'QDay'}],
-    defaultDoseIndex:0, commonIndications:['Systemic Fungal Infection','Cryptococcal Meningitis'], allergyTags:['amphotericin','amphotericin b'] },
+    doseForms:[{dose:'3',unit:'mg/kg',route:'IV',defaultFreq:'QDay'},{dose:'5',unit:'mg/kg',route:'IV',defaultFreq:'QDay'}],
+    defaultDoseIndex:0, commonIndications:['Systemic Fungal Infection','Cryptococcal Meningitis'], allergyTags:['amphotericin','amphotericin b'], weightBased:true },
   { generic:'Ketoconazole', brands:['Nizoral'], drugClass:'Antifungal', schedule:null,
     doseForms:[{dose:'200',unit:'mg',route:'PO',defaultFreq:'QDay'},{dose:'2',unit:'%',route:'Topical',defaultFreq:'QDay'}],
     defaultDoseIndex:1, commonIndications:['Fungal Infection','Seborrheic Dermatitis'], allergyTags:['ketoconazole','azole antifungal'] },
@@ -912,16 +910,16 @@ const MEDICATION_DB = [
     doseForms:[{dose:'10',unit:'mg',route:'PO',defaultFreq:'QDay'},{dose:'20',unit:'mg',route:'PO',defaultFreq:'QDay'}],
     defaultDoseIndex:1, commonIndications:['Rheumatoid Arthritis'], allergyTags:['leflunomide'] },
   { generic:'Adalimumab', brands:['Humira'], drugClass:'TNF Inhibitor', schedule:null,
-    doseForms:[{dose:'40',unit:'mg',route:'SQ',defaultFreq:'QWeek'}],
+    doseForms:[{dose:'40',unit:'mg',route:'SQ',defaultFreq:'Q2weeks'}],
     defaultDoseIndex:0, commonIndications:['RA','Psoriasis','Crohn\'s Disease','UC'], allergyTags:['adalimumab','tnf inhibitor'] },
   { generic:'Etanercept', brands:['Enbrel'], drugClass:'TNF Inhibitor', schedule:null,
     doseForms:[{dose:'25',unit:'mg',route:'SQ',defaultFreq:'BID'},{dose:'50',unit:'mg',route:'SQ',defaultFreq:'QWeek'}],
     defaultDoseIndex:1, commonIndications:['RA','Psoriasis','Ankylosing Spondylitis'], allergyTags:['etanercept','tnf inhibitor'] },
   { generic:'Infliximab', brands:['Remicade'], drugClass:'TNF Inhibitor', schedule:null,
-    doseForms:[{dose:'5',unit:'mg',route:'IV',defaultFreq:'QWeek'}],
-    defaultDoseIndex:0, commonIndications:['RA','Crohn\'s Disease','UC','Psoriasis'], allergyTags:['infliximab','tnf inhibitor'] },
+    doseForms:[{dose:'5',unit:'mg/kg',route:'IV',defaultFreq:'Q8weeks'}],
+    defaultDoseIndex:0, commonIndications:['RA','Crohn\'s Disease','UC','Psoriasis'], allergyTags:['infliximab','tnf inhibitor'], weightBased:true },
   { generic:'Tocilizumab', brands:['Actemra'], drugClass:'IL-6 Inhibitor', schedule:null,
-    doseForms:[{dose:'162',unit:'mg',route:'SQ',defaultFreq:'QWeek'},{dose:'4',unit:'mg',route:'IV',defaultFreq:'QWeek'}],
+    doseForms:[{dose:'162',unit:'mg',route:'SQ',defaultFreq:'QWeek'},{dose:'4',unit:'mg/kg',route:'IV',defaultFreq:'Q4weeks'}],
     defaultDoseIndex:0, commonIndications:['RA','Giant Cell Arteritis','Cytokine Storm'], allergyTags:['tocilizumab'] },
   { generic:'Tofacitinib', brands:['Xeljanz'], drugClass:'JAK Inhibitor', schedule:null,
     doseForms:[{dose:'5',unit:'mg',route:'PO',defaultFreq:'BID'},{dose:'11',unit:'mg',route:'PO',defaultFreq:'QDay'}],
@@ -1384,6 +1382,47 @@ const MEDICATION_DB = [
   { generic:'Artificial Tears', brands:['Refresh','Systane'], drugClass:'Ophthalmic Lubricant', schedule:null,
     doseForms:[{dose:'0.5',unit:'%',route:'Topical',defaultFreq:'PRN'}],
     defaultDoseIndex:0, commonIndications:['Dry Eye'], allergyTags:[] },
+
+  // ── Emergency / Critical Care Medications ──
+  { generic:'Naloxone', brands:['Narcan'], drugClass:'Opioid Antagonist', schedule:null,
+    doseForms:[{dose:'0.4',unit:'mg',route:'IV',defaultFreq:'Q2-3min PRN'},{dose:'2',unit:'mg',route:'IV',defaultFreq:'Q2-3min PRN'},{dose:'4',unit:'mg',route:'Intranasal',defaultFreq:'PRN'},{dose:'0.4',unit:'mg',route:'IM',defaultFreq:'Q2-3min PRN'}],
+    defaultDoseIndex:0, commonIndications:['Opioid Overdose','Opioid-Induced Respiratory Depression'], allergyTags:['naloxone'] },
+  { generic:'Calcium Gluconate', brands:[], drugClass:'Electrolyte Supplement', schedule:null,
+    doseForms:[{dose:'1',unit:'g',route:'IV',defaultFreq:'Once'},{dose:'2',unit:'g',route:'IV',defaultFreq:'Once'},{dose:'3',unit:'g',route:'IV',defaultFreq:'Once'}],
+    defaultDoseIndex:0, commonIndications:['Hyperkalemia','Hypocalcemia','Calcium Channel Blocker Overdose','Magnesium Toxicity'], allergyTags:['calcium gluconate'] },
+  { generic:'Calcium Chloride', brands:[], drugClass:'Electrolyte Supplement', schedule:null,
+    doseForms:[{dose:'1',unit:'g',route:'IV',defaultFreq:'Once'}],
+    defaultDoseIndex:0, commonIndications:['Cardiac Arrest','Hyperkalemia','Calcium Channel Blocker Overdose'], allergyTags:['calcium chloride'] },
+  { generic:'Dextrose 50%', brands:['D50'], drugClass:'Glucose', schedule:null,
+    doseForms:[{dose:'25',unit:'g',route:'IV',defaultFreq:'Once'},{dose:'50',unit:'mL',route:'IV',defaultFreq:'Once'}],
+    defaultDoseIndex:0, commonIndications:['Hypoglycemia','Altered Mental Status','Insulin Overdose'], allergyTags:['dextrose'] },
+  { generic:'Sodium Bicarbonate', brands:[], drugClass:'Alkalinizing Agent', schedule:null,
+    doseForms:[{dose:'50',unit:'mEq',route:'IV',defaultFreq:'Once'},{dose:'1',unit:'mEq/kg',route:'IV',defaultFreq:'Once'}],
+    defaultDoseIndex:0, commonIndications:['Metabolic Acidosis','TCA Overdose','Hyperkalemia','Cardiac Arrest'], allergyTags:['sodium bicarbonate'], weightBased:true },
+  { generic:'Thiamine', brands:['Vitamin B1'], drugClass:'Vitamin', schedule:null,
+    doseForms:[{dose:'100',unit:'mg',route:'IV',defaultFreq:'QDay'},{dose:'100',unit:'mg',route:'PO',defaultFreq:'QDay'},{dose:'500',unit:'mg',route:'IV',defaultFreq:'TID'}],
+    defaultDoseIndex:0, commonIndications:['Wernicke Encephalopathy','Alcohol Withdrawal','Nutritional Deficiency'], allergyTags:['thiamine'] },
+  { generic:'N-Acetylcysteine', brands:['Mucomyst','Acetadote'], drugClass:'Antidote', schedule:null,
+    doseForms:[{dose:'150',unit:'mg/kg',route:'IV',defaultFreq:'Once (loading)'},{dose:'70',unit:'mg/kg',route:'PO',defaultFreq:'Q4h x17 doses'}],
+    defaultDoseIndex:0, commonIndications:['Acetaminophen Overdose','Hepatoprotection'], allergyTags:['n-acetylcysteine','nac'], weightBased:true },
+  { generic:'Oxytocin', brands:['Pitocin'], drugClass:'Uterotonic', schedule:null,
+    doseForms:[{dose:'10',unit:'units',route:'IV',defaultFreq:'Per protocol'},{dose:'20',unit:'units',route:'IV',defaultFreq:'Per protocol'}],
+    defaultDoseIndex:0, commonIndications:['Labor Induction','Postpartum Hemorrhage','Labor Augmentation'], allergyTags:['oxytocin'] },
+  { generic:'Magnesium Sulfate', brands:[], drugClass:'Electrolyte/Tocolytic', schedule:null,
+    doseForms:[{dose:'2',unit:'g',route:'IV',defaultFreq:'Once (loading)'},{dose:'4',unit:'g',route:'IV',defaultFreq:'Once (loading)'},{dose:'6',unit:'g',route:'IV',defaultFreq:'Once (loading)'},{dose:'1',unit:'g/hr',route:'IV',defaultFreq:'Continuous'}],
+    defaultDoseIndex:1, commonIndications:['Eclampsia','Pre-eclampsia','Torsades de Pointes','Hypomagnesemia','Tocolysis'], allergyTags:['magnesium sulfate'] },
+  { generic:'Tirzepatide', brands:['Mounjaro','Zepbound'], drugClass:'GLP-1/GIP Agonist', schedule:null,
+    doseForms:[{dose:'2.5',unit:'mg',route:'SQ',defaultFreq:'QWeek'},{dose:'5',unit:'mg',route:'SQ',defaultFreq:'QWeek'},{dose:'7.5',unit:'mg',route:'SQ',defaultFreq:'QWeek'},{dose:'10',unit:'mg',route:'SQ',defaultFreq:'QWeek'},{dose:'12.5',unit:'mg',route:'SQ',defaultFreq:'QWeek'},{dose:'15',unit:'mg',route:'SQ',defaultFreq:'QWeek'}],
+    defaultDoseIndex:0, commonIndications:['Type 2 Diabetes','Obesity','Weight Management'], allergyTags:['tirzepatide','glp-1 agonist'] },
+  { generic:'Epinephrine', brands:['EpiPen','Adrenalin'], drugClass:'Vasopressor', schedule:null,
+    doseForms:[{dose:'0.3',unit:'mg',route:'IM',defaultFreq:'Q5-15min PRN'},{dose:'0.5',unit:'mg',route:'IM',defaultFreq:'Q5-15min PRN'},{dose:'1',unit:'mg',route:'IV',defaultFreq:'Q3-5min (ACLS)'},{dose:'0.01',unit:'mg/kg',route:'IV',defaultFreq:'Continuous'}],
+    defaultDoseIndex:0, commonIndications:['Anaphylaxis','Cardiac Arrest','Severe Asthma','Vasopressor Support'], allergyTags:['epinephrine'] },
+  { generic:'Atropine', brands:[], drugClass:'Anticholinergic', schedule:null,
+    doseForms:[{dose:'0.5',unit:'mg',route:'IV',defaultFreq:'Q3-5min PRN'},{dose:'1',unit:'mg',route:'IV',defaultFreq:'Q3-5min PRN'}],
+    defaultDoseIndex:0, commonIndications:['Symptomatic Bradycardia','Organophosphate Poisoning','Pre-intubation'], allergyTags:['atropine'] },
+  { generic:'Amiodarone', brands:['Cordarone','Pacerone'], drugClass:'Antiarrhythmic', schedule:null,
+    doseForms:[{dose:'150',unit:'mg',route:'IV',defaultFreq:'Once (loading)'},{dose:'300',unit:'mg',route:'IV',defaultFreq:'Once (cardiac arrest)'},{dose:'200',unit:'mg',route:'PO',defaultFreq:'QDay'},{dose:'400',unit:'mg',route:'PO',defaultFreq:'QDay'}],
+    defaultDoseIndex:2, commonIndications:['Atrial Fibrillation','Ventricular Tachycardia','VF/Pulseless VT (ACLS)'], allergyTags:['amiodarone','antiarrhythmic'] },
 ];
 
 /* ============================================================
@@ -1478,6 +1517,295 @@ const PHARMACY_DB = [
 /* ============================================================
    Search Functions
    ============================================================ */
+
+/* ============================================================
+   Max Daily Dose Database (safety limits)
+   Key = lowercase generic name, value = { maxSingleDose, maxDailyDose, unit }
+   ============================================================ */
+var MAX_DOSE_LIMITS = {
+  'acetaminophen':      { maxSingleDose: 1000, maxDailyDose: 4000, unit: 'mg' },
+  'ibuprofen':          { maxSingleDose: 800,  maxDailyDose: 3200, unit: 'mg' },
+  'naproxen':           { maxSingleDose: 500,  maxDailyDose: 1500, unit: 'mg' },
+  'metformin':          { maxSingleDose: 1000, maxDailyDose: 2550, unit: 'mg' },
+  'lisinopril':         { maxSingleDose: 80,   maxDailyDose: 80,   unit: 'mg' },
+  'losartan':           { maxSingleDose: 100,  maxDailyDose: 100,  unit: 'mg' },
+  'amlodipine':         { maxSingleDose: 10,   maxDailyDose: 10,   unit: 'mg' },
+  'atorvastatin':       { maxSingleDose: 80,   maxDailyDose: 80,   unit: 'mg' },
+  'simvastatin':        { maxSingleDose: 40,   maxDailyDose: 40,   unit: 'mg' },
+  'metoprolol tartrate': { maxSingleDose: 200, maxDailyDose: 400,  unit: 'mg' },
+  'metoprolol succinate': { maxSingleDose: 400, maxDailyDose: 400, unit: 'mg' },
+  'furosemide':         { maxSingleDose: 200,  maxDailyDose: 600,  unit: 'mg' },
+  'hydrochlorothiazide': { maxSingleDose: 50,  maxDailyDose: 50,   unit: 'mg' },
+  'gabapentin':         { maxSingleDose: 1200, maxDailyDose: 3600, unit: 'mg' },
+  'pregabalin':         { maxSingleDose: 300,  maxDailyDose: 600,  unit: 'mg' },
+  'sertraline':         { maxSingleDose: 200,  maxDailyDose: 200,  unit: 'mg' },
+  'fluoxetine':         { maxSingleDose: 80,   maxDailyDose: 80,   unit: 'mg' },
+  'escitalopram':       { maxSingleDose: 20,   maxDailyDose: 20,   unit: 'mg' },
+  'citalopram':         { maxSingleDose: 40,   maxDailyDose: 40,   unit: 'mg' },
+  'venlafaxine':        { maxSingleDose: 225,  maxDailyDose: 375,  unit: 'mg' },
+  'duloxetine':         { maxSingleDose: 60,   maxDailyDose: 120,  unit: 'mg' },
+  'prednisone':         { maxSingleDose: 80,   maxDailyDose: 80,   unit: 'mg' },
+  'warfarin':           { maxSingleDose: 15,   maxDailyDose: 15,   unit: 'mg' },
+  'oxycodone':          { maxSingleDose: 40,   maxDailyDose: 160,  unit: 'mg' },
+  'hydrocodone':        { maxSingleDose: 10,   maxDailyDose: 60,   unit: 'mg' },
+  'morphine':           { maxSingleDose: 30,   maxDailyDose: 200,  unit: 'mg' },
+  'tramadol':           { maxSingleDose: 100,  maxDailyDose: 400,  unit: 'mg' },
+  'alprazolam':         { maxSingleDose: 2,    maxDailyDose: 10,   unit: 'mg' },
+  'lorazepam':          { maxSingleDose: 4,    maxDailyDose: 10,   unit: 'mg' },
+  'diazepam':           { maxSingleDose: 10,   maxDailyDose: 40,   unit: 'mg' },
+  'omeprazole':         { maxSingleDose: 40,   maxDailyDose: 40,   unit: 'mg' },
+  'pantoprazole':       { maxSingleDose: 40,   maxDailyDose: 80,   unit: 'mg' },
+  'levothyroxine':      { maxSingleDose: 300,  maxDailyDose: 300,  unit: 'mcg' },
+  'carvedilol':         { maxSingleDose: 25,   maxDailyDose: 50,   unit: 'mg' },
+  'digoxin':            { maxSingleDose: 0.5,  maxDailyDose: 0.5,  unit: 'mg' },
+  'amoxicillin':        { maxSingleDose: 1000, maxDailyDose: 3000, unit: 'mg' },
+  'ciprofloxacin':      { maxSingleDose: 750,  maxDailyDose: 1500, unit: 'mg' },
+  'azithromycin':       { maxSingleDose: 500,  maxDailyDose: 500,  unit: 'mg' },
+  'potassium chloride':  { maxSingleDose: 40,  maxDailyDose: 100,  unit: 'mEq' },
+};
+
+/**
+ * Check if a dose exceeds safety limits.
+ * @param {string} drugName
+ * @param {number} dose
+ * @param {string} unit
+ * @returns {{exceeded:boolean, limit:object, type:string}|null}
+ */
+function checkDoseLimit(drugName, dose, unit) {
+  if (!drugName || !dose || isNaN(dose)) return null;
+  var key = drugName.toLowerCase();
+  var limits = MAX_DOSE_LIMITS[key];
+  if (!limits) return null;
+  // Only check if units match
+  if (unit && unit.toLowerCase() !== limits.unit.toLowerCase()) return null;
+  var numDose = parseFloat(dose);
+  if (numDose > limits.maxSingleDose) {
+    return { exceeded: true, limit: limits, type: 'single' };
+  }
+  return null;
+}
+
+/**
+ * Check for duplicate medication orders or active medications.
+ * @param {string} drugName
+ * @param {string} patientId
+ * @returns {Array<{source:string, name:string}>}
+ */
+function checkDuplicateOrders(drugName, patientId) {
+  if (!drugName || !patientId) return [];
+  var lower = drugName.toLowerCase();
+  var results = [];
+
+  // Check active medications
+  var activeMeds = (typeof getPatientMedications === 'function') ? getPatientMedications(patientId) : [];
+  activeMeds.forEach(function(m) {
+    if (m.status === 'Current' && (m.name || '').toLowerCase() === lower) {
+      results.push({ source: 'Active Medication', name: m.name + ' ' + (m.dose || '') + ' ' + (m.unit || '') });
+    }
+  });
+
+  // Check pending/active orders in last 24 hours
+  var orders = (typeof getOrdersByPatient === 'function') ? getOrdersByPatient(patientId) : [];
+  var oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  orders.forEach(function(o) {
+    if (o.type !== 'Medication') return;
+    if (o.status !== 'Pending' && o.status !== 'Active') return;
+    var d = o.detail || {};
+    if ((d.drug || '').toLowerCase() === lower && o.dateTime > oneDayAgo) {
+      results.push({ source: 'Pending Order', name: d.drug + ' ' + (d.dose || '') + ' ' + (d.unit || '') });
+    }
+  });
+
+  return results;
+}
+
+/**
+ * Check for duplicate lab/imaging orders.
+ */
+function checkDuplicateLabImaging(type, studyName, patientId) {
+  if (!studyName || !patientId) return [];
+  var lower = studyName.toLowerCase();
+  var results = [];
+  var orders = (typeof getOrdersByPatient === 'function') ? getOrdersByPatient(patientId) : [];
+  var timeWindow = type === 'Lab' ? 24 * 60 * 60 * 1000 : 72 * 60 * 60 * 1000;
+  var cutoff = new Date(Date.now() - timeWindow).toISOString();
+
+  orders.forEach(function(o) {
+    if (o.type !== type) return;
+    if (o.status !== 'Pending' && o.status !== 'Active') return;
+    if (o.dateTime < cutoff) return;
+    var d = o.detail || {};
+    var orderName = (d.labTest || d.studyName || d.panel || '').toLowerCase();
+    if (orderName === lower) {
+      results.push({ source: 'Pending ' + type + ' Order', name: orderName, date: o.dateTime });
+    }
+  });
+  return results;
+}
+
+/* ============================================================
+   Drug-Drug Interaction Database
+   Each entry: [classOrDrug1, classOrDrug2, severity, effect]
+   severity: 'major' (hard warning), 'moderate' (soft warning)
+   Matching: checks both generic name and drugClass (case-insensitive)
+   ============================================================ */
+var DRUG_INTERACTIONS = [
+  // ── Major — potentially fatal ──
+  ['MAOI','SSRI','major','Serotonin syndrome — potentially fatal. Contraindicated combination.'],
+  ['MAOI','SNRI','major','Serotonin syndrome — potentially fatal. Contraindicated combination.'],
+  ['MAOI','Meperidine','major','Serotonin syndrome and hypertensive crisis. Contraindicated.'],
+  ['MAOI','Tramadol','major','Serotonin syndrome risk. Contraindicated.'],
+  ['Warfarin','NSAID','major','Increased bleeding risk. GI hemorrhage. Avoid combination if possible.'],
+  ['Warfarin','Aspirin','major','Increased bleeding risk. Use only if clearly indicated (e.g., mechanical valve + CAD).'],
+  ['Warfarin','Metronidazole','major','Warfarin metabolism inhibited — risk of supratherapeutic INR and bleeding.'],
+  ['Warfarin','Fluconazole','major','Fluconazole inhibits CYP2C9 — markedly increased INR and bleeding risk.'],
+  ['Warfarin','TMP/SMX','major','Increased INR and bleeding risk. Monitor closely or avoid.'],
+  ['Methotrexate','TMP/SMX','major','Pancytopenia and bone marrow suppression. Potentially fatal.'],
+  ['Methotrexate','NSAID','major','Decreased methotrexate clearance — increased toxicity risk.'],
+  ['Opioid Analgesic','Benzodiazepine','major','FDA Black Box Warning: respiratory depression and death. Avoid combination when possible.'],
+  ['Opioid Analgesic','Barbiturate','major','Additive CNS and respiratory depression. Risk of death.'],
+  ['Simvastatin','Clarithromycin','major','Rhabdomyolysis risk. CYP3A4 inhibition increases statin levels.'],
+  ['Simvastatin','Itraconazole','major','Rhabdomyolysis risk. Contraindicated combination.'],
+  ['Simvastatin','Ketoconazole','major','Rhabdomyolysis risk. Contraindicated combination.'],
+  ['Lovastatin','Clarithromycin','major','Rhabdomyolysis risk. Contraindicated.'],
+  ['Lovastatin','Itraconazole','major','Rhabdomyolysis risk. Contraindicated.'],
+  ['Cisapride','Macrolide','major','QT prolongation — torsades de pointes risk.'],
+  ['Linezolid','SSRI','major','Serotonin syndrome — linezolid is a weak MAOI.'],
+  ['Linezolid','SNRI','major','Serotonin syndrome — linezolid is a weak MAOI.'],
+  ['Potassium Chloride','ACE Inhibitor','major','Hyperkalemia risk. Monitor potassium closely.'],
+  ['Potassium Chloride','ARB','major','Hyperkalemia risk. Monitor potassium closely.'],
+  ['Potassium Chloride','Potassium-Sparing Diuretic','major','Hyperkalemia risk — potentially fatal. Avoid combination.'],
+  ['ACE Inhibitor','Potassium-Sparing Diuretic','major','Hyperkalemia risk. Monitor potassium closely.'],
+  ['ARB','Potassium-Sparing Diuretic','major','Hyperkalemia risk. Monitor potassium closely.'],
+  ['Lithium','NSAID','major','Increased lithium levels — toxicity risk. Monitor lithium levels.'],
+  ['Lithium','ACE Inhibitor','major','Increased lithium levels — toxicity risk. Monitor lithium levels.'],
+  ['Lithium','Thiazide Diuretic','major','Increased lithium levels — toxicity risk. Monitor lithium levels.'],
+  ['Digoxin','Amiodarone','major','Amiodarone increases digoxin levels 70-100%. Reduce digoxin dose by 50%.'],
+  ['Digoxin','Verapamil','major','Verapamil increases digoxin levels. Reduce digoxin dose.'],
+  ['Clopidogrel','Omeprazole','major','Omeprazole inhibits CYP2C19, reducing clopidogrel activation. Use pantoprazole instead.'],
+  ['Clopidogrel','Esomeprazole','major','Esomeprazole inhibits CYP2C19, reducing clopidogrel activation.'],
+  ['QTc-Prolonging Agent','QTc-Prolonging Agent','major','Additive QTc prolongation — risk of torsades de pointes.'],
+
+  // ── Moderate — clinically significant ──
+  ['SSRI','Triptan','moderate','Theoretical serotonin syndrome risk. Monitor for symptoms.'],
+  ['SSRI','NSAID','moderate','Increased bleeding risk (SSRIs impair platelet function).'],
+  ['SNRI','NSAID','moderate','Increased bleeding risk.'],
+  ['ACE Inhibitor','ARB','moderate','Dual RAAS blockade — hyperkalemia and renal impairment. Generally avoid.'],
+  ['Beta Blocker','Calcium Channel Blocker','moderate','Additive bradycardia and hypotension risk. Monitor heart rate.'],
+  ['Beta Blocker','Digoxin','moderate','Additive bradycardia. Monitor heart rate.'],
+  ['Calcium Channel Blocker','Digoxin','moderate','Increased digoxin levels and additive AV conduction delay.'],
+  ['Fluoroquinolone','Corticosteroid','moderate','Increased tendon rupture risk, especially in elderly.'],
+  ['Fluoroquinolone','NSAID','moderate','Increased seizure risk.'],
+  ['Fluoroquinolone','Antacid','moderate','Reduced fluoroquinolone absorption — separate by 2+ hours.'],
+  ['Levothyroxine','Calcium Channel Blocker','moderate','Reduced levothyroxine absorption. Separate dosing.'],
+  ['Levothyroxine','Iron Supplement','moderate','Reduced levothyroxine absorption. Separate by 4+ hours.'],
+  ['Metformin','Contrast Dye','moderate','Risk of lactic acidosis. Hold metformin 48 hours after contrast.'],
+  ['Warfarin','Acetaminophen','moderate','Chronic acetaminophen use may increase INR. Monitor if >2g/day for >3 days.'],
+  ['Warfarin','Macrolide','moderate','Increased INR — macrolides inhibit warfarin metabolism.'],
+  ['Carbamazepine','Oral Contraceptive','moderate','Carbamazepine induces metabolism of oral contraceptives — reduced efficacy.'],
+  ['Phenytoin','Oral Contraceptive','moderate','Phenytoin induces metabolism of oral contraceptives — reduced efficacy.'],
+  ['Theophylline','Fluoroquinolone','moderate','Increased theophylline levels — ciprofloxacin is the main offender.'],
+  ['Allopurinol','Azathioprine','moderate','Allopurinol inhibits xanthine oxidase — greatly increased azathioprine toxicity. Reduce azathioprine dose 75%.'],
+  ['Sulfonylurea','Fluoroquinolone','moderate','Hypoglycemia risk. Monitor blood glucose.'],
+  ['Sulfonylurea','Beta Blocker','moderate','Beta-blockers may mask hypoglycemia symptoms.'],
+];
+
+// QTc-prolonging drug classes/names for cross-checking
+var QTC_PROLONGING_DRUGS = [
+  'Ondansetron','Haloperidol','Droperidol','Amiodarone','Sotalol','Dofetilide',
+  'Erythromycin','Clarithromycin','Azithromycin','Fluoroquinolone','Ciprofloxacin',
+  'Levofloxacin','Moxifloxacin','Methadone','Chlorpromazine','Thioridazine',
+  'Ziprasidone','Quetiapine','Citalopram','Escitalopram',
+];
+
+/**
+ * Check drug-drug interactions for a new medication against a patient's active medications.
+ * @param {string} drugName - generic name of the new drug
+ * @param {object|null} medEntry - MEDICATION_DB entry if selected from autocomplete
+ * @param {string} patientId - patient ID to look up active medications
+ * @returns {Array<{drug1:string, drug2:string, severity:string, effect:string}>}
+ */
+function checkDrugInteractions(drugName, medEntry, patientId) {
+  if (!drugName || !patientId) return [];
+
+  var activeMeds = (typeof getPatientMedications === 'function') ? getPatientMedications(patientId) : [];
+  // Also check pending/active medication orders for this patient
+  var activeOrders = (typeof getOrdersByPatient === 'function') ? getOrdersByPatient(patientId) : [];
+  var medOrders = activeOrders.filter(function(o) {
+    return o.type === 'Medication' && (o.status === 'Pending' || o.status === 'Active');
+  });
+
+  var newDrugName = drugName.toLowerCase();
+  var newDrugClass = medEntry ? medEntry.drugClass.toLowerCase() : '';
+  var results = [];
+
+  // Build list of existing drugs to check against
+  var existingDrugs = [];
+  activeMeds.forEach(function(m) {
+    existingDrugs.push({ name: (m.name || '').toLowerCase(), drugClass: '' });
+    // Try to find the drug class from MEDICATION_DB
+    var found = MEDICATION_DB.find(function(db) { return db.generic.toLowerCase() === (m.name || '').toLowerCase(); });
+    if (found) existingDrugs[existingDrugs.length - 1].drugClass = found.drugClass.toLowerCase();
+  });
+  medOrders.forEach(function(o) {
+    var d = o.detail || {};
+    existingDrugs.push({ name: (d.drug || '').toLowerCase(), drugClass: '' });
+    var found = MEDICATION_DB.find(function(db) { return db.generic.toLowerCase() === (d.drug || '').toLowerCase(); });
+    if (found) existingDrugs[existingDrugs.length - 1].drugClass = found.drugClass.toLowerCase();
+  });
+
+  // Check each interaction rule
+  function matchesDrug(ruleKey, name, drugClass) {
+    var key = ruleKey.toLowerCase();
+    return name.indexOf(key) >= 0 || key.indexOf(name) >= 0 || drugClass === key || drugClass.indexOf(key) >= 0;
+  }
+
+  for (var i = 0; i < DRUG_INTERACTIONS.length; i++) {
+    var rule = DRUG_INTERACTIONS[i];
+    var key1 = rule[0], key2 = rule[1], severity = rule[2], effect = rule[3];
+
+    // Check if new drug matches one side and any existing drug matches the other
+    var newMatchesSide1 = matchesDrug(key1, newDrugName, newDrugClass);
+    var newMatchesSide2 = matchesDrug(key2, newDrugName, newDrugClass);
+
+    for (var j = 0; j < existingDrugs.length; j++) {
+      var existing = existingDrugs[j];
+      if (newMatchesSide1 && matchesDrug(key2, existing.name, existing.drugClass)) {
+        results.push({ drug1: drugName, drug2: existing.name, severity: severity, effect: effect });
+      } else if (newMatchesSide2 && matchesDrug(key1, existing.name, existing.drugClass)) {
+        results.push({ drug1: drugName, drug2: existing.name, severity: severity, effect: effect });
+      }
+    }
+  }
+
+  // QTc prolongation cross-check
+  var newIsQTc = QTC_PROLONGING_DRUGS.some(function(d) {
+    return newDrugName.indexOf(d.toLowerCase()) >= 0 || newDrugClass.indexOf(d.toLowerCase()) >= 0;
+  });
+  if (newIsQTc) {
+    existingDrugs.forEach(function(existing) {
+      var existingIsQTc = QTC_PROLONGING_DRUGS.some(function(d) {
+        return existing.name.indexOf(d.toLowerCase()) >= 0 || existing.drugClass.indexOf(d.toLowerCase()) >= 0;
+      });
+      if (existingIsQTc) {
+        // Check not already caught by general DDI rules
+        var already = results.some(function(r) { return r.drug2 === existing.name && r.effect.indexOf('QTc') >= 0; });
+        if (!already) {
+          results.push({ drug1: drugName, drug2: existing.name, severity: 'major', effect: 'Both drugs prolong QTc interval — additive risk of torsades de pointes.' });
+        }
+      }
+    });
+  }
+
+  // Deduplicate
+  var seen = {};
+  return results.filter(function(r) {
+    var key = r.drug1 + '|' + r.drug2 + '|' + r.effect;
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
 
 /**
  * Search medications by generic or brand name.

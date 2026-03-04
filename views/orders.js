@@ -61,6 +61,9 @@ function renderOrders(encounterId) {
   });
   setActiveNav('dashboard');
 
+  // Patient identity banner
+  if (patient) app.appendChild(buildPatientBanner(patient.id));
+
   // ---------- Context bar ----------
   const ctxBar = document.createElement('div');
   ctxBar.className = 'encounter-context-bar';
@@ -424,6 +427,10 @@ function renderOrderEntryForm(container, encounter, patient) {
   const placeBtn = document.createElement('button');
   placeBtn.className = 'btn btn-primary';
   placeBtn.textContent = 'Place Order';
+  if (!canPlaceOrders()) {
+    placeBtn.disabled = true;
+    placeBtn.title = 'You do not have permission to place orders';
+  }
   placeBtn.onclick = () => placeOrder(encounter, patient);
   footer.appendChild(placeBtn);
   card.appendChild(footer);
@@ -688,6 +695,12 @@ function renderTypeFields(container, type) {
 
 /* ---------- Place Order ---------- */
 function placeOrder(encounter, patient) {
+  // RBAC: check order placement permission
+  if (!canPlaceOrders()) {
+    showToast('You do not have permission to place orders.', 'error');
+    return;
+  }
+
   const orderedBy = document.getElementById('ord-provider')?.value;
   const notes     = document.getElementById('ord-notes')?.value.trim() || '';
   const type      = _selectedType;
@@ -764,6 +777,39 @@ function placeOrder(encounter, patient) {
 
   if (!valid) return;
 
+  // Dose range checking for Medication orders
+  if (type === 'Medication' && typeof checkDoseLimit === 'function') {
+    const doseCheck = checkDoseLimit(detail.drug, detail.dose, detail.unit);
+    if (doseCheck && doseCheck.exceeded) {
+      const maxLabel = doseCheck.type === 'single' ? 'Max single dose' : 'Max daily dose';
+      const limitVal = doseCheck.type === 'single' ? doseCheck.limit.maxSingleDose : doseCheck.limit.maxDailyDose;
+      showToast(maxLabel + ' for ' + detail.drug + ' is ' + limitVal + ' ' + doseCheck.limit.unit + '. Entered: ' + detail.dose + ' ' + (detail.unit || '') + '.', 'error');
+      return;
+    }
+  }
+
+  // Duplicate order detection
+  if (patient) {
+    let dupes = [];
+    if (type === 'Medication' && typeof checkDuplicateOrders === 'function') {
+      dupes = checkDuplicateOrders(detail.drug, patient.id);
+    } else if ((type === 'Lab' || type === 'Imaging') && typeof checkDuplicateLabImaging === 'function') {
+      const studyName = type === 'Lab' ? (detail.labTest || detail.panel || '') : (detail.studyName || '');
+      dupes = checkDuplicateLabImaging(type, studyName, patient.id);
+    }
+    if (dupes.length > 0) {
+      const dupeText = dupes.map(d => d.source + ': ' + d.name).join(', ');
+      confirmAction({
+        title: 'Duplicate Order Warning',
+        message: 'This patient already has: ' + dupeText + '. Place order anyway?',
+        confirmLabel: 'Place Duplicate Order',
+        danger: false,
+        onConfirm: () => { _continueAfterDupeCheck(encounter, patient, type, detail, priority, notes); },
+      });
+      return;
+    }
+  }
+
   const doSave = () => {
     saveOrder({
       encounterId: encounter.id,
@@ -783,23 +829,52 @@ function placeOrder(encounter, patient) {
     if (notesField) notesField.value = '';
   };
 
-  // Drug-allergy check for Medication orders
-  if (type === 'Medication' && patient) {
-    const matches = _matchingAllergies(detail.drug || '', patient.id);
-    if (matches.length > 0) {
-      const allergyText = matches.map(a => a.allergen + ' (' + a.severity + ' — ' + a.reaction + ')').join(', ');
+  // Controlled substance check for Medication orders
+  if (type === 'Medication') {
+    const typeFieldsContainer = document.getElementById('type-fields');
+    const medEntry = typeFieldsContainer ? typeFieldsContainer._selectedMedEntry : null;
+    if (medEntry && medEntry.schedule) {
+      if (!canPrescribeControlled()) {
+        showToast('Only attending physicians with a DEA number can prescribe controlled substances (Schedule ' + medEntry.schedule + ').', 'error');
+        return;
+      }
+    }
+  }
+
+  // Drug-drug interaction check for Medication orders
+  if (type === 'Medication' && patient && typeof checkDrugInteractions === 'function') {
+    const typeFieldsContainer2 = document.getElementById('type-fields');
+    const medEntryDDI = typeFieldsContainer2 ? typeFieldsContainer2._selectedMedEntry : null;
+    const ddiResults = checkDrugInteractions(detail.drug || '', medEntryDDI, patient.id);
+    const majorDDI = ddiResults.filter(d => d.severity === 'major');
+    const moderateDDI = ddiResults.filter(d => d.severity === 'moderate');
+
+    if (majorDDI.length > 0) {
+      const ddiText = majorDDI.map(d => '<strong>' + esc(d.drug1) + ' + ' + esc(d.drug2) + '</strong>: ' + esc(d.effect)).join('<br><br>');
       confirmAction({
-        title: '⚠ Allergy Alert — Override?',
-        message: 'Patient has a recorded allergy to: ' + allergyText + '. Are you sure you want to place this order?',
-        confirmLabel: 'Override & Place Order',
+        title: '⚠ MAJOR Drug Interaction',
+        message: ddiText + (moderateDDI.length ? '<br><br><em>+ ' + moderateDDI.length + ' moderate interaction(s)</em>' : ''),
+        confirmLabel: 'Override & Continue',
         danger: true,
-        onConfirm: doSave,
+        onConfirm: () => { _proceedAfterDDI(type, detail, patient, doSave); },
+      });
+      return;
+    }
+    if (moderateDDI.length > 0) {
+      const ddiText = moderateDDI.map(d => '<strong>' + esc(d.drug1) + ' + ' + esc(d.drug2) + '</strong>: ' + esc(d.effect)).join('<br><br>');
+      confirmAction({
+        title: 'Drug Interaction Warning',
+        message: ddiText,
+        confirmLabel: 'Acknowledge & Continue',
+        danger: false,
+        onConfirm: () => { _proceedAfterDDI(type, detail, patient, doSave); },
       });
       return;
     }
   }
 
-  doSave();
+  // Drug-allergy check for Medication orders
+  _proceedAfterDDI(type, detail, patient, doSave);
   return;
 
   // Refresh list and reset form
@@ -964,6 +1039,74 @@ function _renderPharmacySection(sectionEl, patientId) {
   }
 }
 
+/* ---------- Continue after duplicate check (re-runs controlled substance + DDI + allergy) ---------- */
+function _continueAfterDupeCheck(encounter, patient, type, detail, priority, notes) {
+  const doSave = () => {
+    saveOrder({
+      encounterId: encounter.id,
+      patientId:   encounter.patientId,
+      orderedBy:   document.getElementById('ord-provider')?.value || '',
+      type, priority, status: 'Pending', detail, notes,
+      dateTime: new Date().toISOString(),
+    });
+    showToast(type + ' order placed.', 'success');
+    refreshOrderList();
+    renderTypeFields(document.getElementById('type-fields'), type);
+    const notesField = document.getElementById('ord-notes');
+    if (notesField) notesField.value = '';
+  };
+
+  // Controlled substance check
+  if (type === 'Medication') {
+    const typeFieldsContainer = document.getElementById('type-fields');
+    const medEntry = typeFieldsContainer ? typeFieldsContainer._selectedMedEntry : null;
+    if (medEntry && medEntry.schedule && !canPrescribeControlled()) {
+      showToast('Only attending physicians with a DEA number can prescribe controlled substances.', 'error');
+      return;
+    }
+  }
+
+  // DDI check
+  if (type === 'Medication' && patient && typeof checkDrugInteractions === 'function') {
+    const typeFieldsContainer2 = document.getElementById('type-fields');
+    const medEntryDDI = typeFieldsContainer2 ? typeFieldsContainer2._selectedMedEntry : null;
+    const ddiResults = checkDrugInteractions(detail.drug || '', medEntryDDI, patient.id);
+    const majorDDI = ddiResults.filter(d => d.severity === 'major');
+    if (majorDDI.length > 0) {
+      const ddiText = majorDDI.map(d => '<strong>' + esc(d.drug1) + ' + ' + esc(d.drug2) + '</strong>: ' + esc(d.effect)).join('<br><br>');
+      confirmAction({
+        title: '⚠ MAJOR Drug Interaction',
+        message: ddiText,
+        confirmLabel: 'Override & Continue',
+        danger: true,
+        onConfirm: () => { _proceedAfterDDI(type, detail, patient, doSave); },
+      });
+      return;
+    }
+  }
+
+  _proceedAfterDDI(type, detail, patient, doSave);
+}
+
+/* ---------- DDI → Allergy check pipeline ---------- */
+function _proceedAfterDDI(type, detail, patient, doSave) {
+  if (type === 'Medication' && patient) {
+    const matches = _matchingAllergies(detail.drug || '', patient.id);
+    if (matches.length > 0) {
+      const allergyText = matches.map(a => a.allergen + ' (' + a.severity + ' — ' + a.reaction + ')').join(', ');
+      confirmAction({
+        title: '⚠ Allergy Alert — Override?',
+        message: 'Patient has a recorded allergy to: ' + allergyText + '. Are you sure you want to place this order?',
+        confirmLabel: 'Override & Place Order',
+        danger: true,
+        onConfirm: doSave,
+      });
+      return;
+    }
+  }
+  doSave();
+}
+
 /* ---------- Drug-Allergy Alert helpers ---------- */
 function _matchingAllergies(drugName, patientId, medEntry) {
   if (!drugName || !patientId) return [];
@@ -990,15 +1133,37 @@ function _matchingAllergies(drugName, patientId, medEntry) {
 function _checkDrugAllergy(drugName, patientId, medEntry) {
   const alertDiv = document.getElementById('drug-allergy-alert');
   if (!alertDiv) return;
-  if (!drugName) { alertDiv.hidden = true; alertDiv.textContent = ''; return; }
+  if (!drugName) { alertDiv.hidden = true; alertDiv.innerHTML = ''; return; }
+
+  const parts = [];
+
+  // Allergy check
   const matches = _matchingAllergies(drugName, patientId, medEntry);
   if (matches.length > 0) {
-    const msg = '⚠ Allergy Alert: ' + matches.map(a => a.allergen + ' (' + a.severity + ' — ' + a.reaction + ')').join('; ');
-    alertDiv.textContent = msg;
+    parts.push('⚠ Allergy: ' + matches.map(a => a.allergen + ' (' + a.severity + ' — ' + a.reaction + ')').join('; '));
+  }
+
+  // Drug-drug interaction check
+  if (typeof checkDrugInteractions === 'function') {
+    const ddiResults = checkDrugInteractions(drugName, medEntry, patientId);
+    if (ddiResults.length > 0) {
+      const majorDDI = ddiResults.filter(d => d.severity === 'major');
+      const moderateDDI = ddiResults.filter(d => d.severity === 'moderate');
+      if (majorDDI.length > 0) {
+        parts.push('⚠ MAJOR Interaction: ' + majorDDI.map(d => d.drug2 + ' — ' + d.effect).join('; '));
+      }
+      if (moderateDDI.length > 0) {
+        parts.push('Moderate Interaction: ' + moderateDDI.map(d => d.drug2 + ' — ' + d.effect).join('; '));
+      }
+    }
+  }
+
+  if (parts.length > 0) {
+    alertDiv.textContent = parts.join(' | ');
     alertDiv.hidden = false;
   } else {
     alertDiv.hidden = true;
-    alertDiv.textContent = '';
+    alertDiv.innerHTML = '';
   }
 }
 

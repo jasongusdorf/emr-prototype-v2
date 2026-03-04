@@ -2998,3 +2998,164 @@ body.dark-mode .appt-in-progress { background: #2e1065; color: #c4b5fd; border-l
   background: var(--border);
   color: var(--text-secondary);
 }
+
+/* ============================================================
+   Focus Visible (Accessibility)
+   ============================================================ */
+*:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+/* ============================================================
+   Patient Banner (sticky identity strip)
+   ============================================================ */
+.patient-banner {
+  position: sticky;
+  top: 0;
+  z-index: 45;
+  background: var(--bg-surface);
+  border-bottom: 2px solid var(--border);
+  padding: 6px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.patient-banner-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.patient-banner-meta {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.patient-banner-allergy {
+  background: var(--danger-light);
+  color: var(--danger);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: auto;
+}
+.patient-banner-nkda {
+  background: var(--success-light);
+  color: var(--success);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+/* ============================================================
+   Sidebar toggle (hamburger) — hidden on desktop
+   ============================================================ */
+.sidebar-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 4px;
+  margin-right: 8px;
+  line-height: 1;
+}
+
+/* ============================================================
+   Mobile / Tablet Responsiveness
+   ============================================================ */
+@media (max-width: 768px) {
+  #shell {
+    grid-template-columns: 1fr;
+  }
+
+  #sidebar {
+    position: fixed;
+    left: -260px;
+    top: 0;
+    width: 260px;
+    height: 100vh;
+    z-index: 500;
+    transition: left 0.25s ease;
+    box-shadow: none;
+  }
+  #sidebar.open {
+    left: 0;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.25);
+  }
+
+  .sidebar-toggle {
+    display: inline-flex;
+  }
+
+  /* Topbar adjustments */
+  #topbar {
+    padding: 10px 12px;
+    gap: 6px;
+  }
+  #topbar-title { font-size: 14px; }
+  #topbar-meta  { display: none; }
+
+  /* Content padding */
+  #app { padding: 14px 12px; }
+
+  /* Forms */
+  .form-row,
+  .form-row-3 { grid-template-columns: 1fr; }
+
+  /* Dashboard summary bar */
+  .dashboard-summary-bar { grid-template-columns: 1fr 1fr; }
+
+  /* Encounter context bar */
+  .encounter-context-bar { flex-wrap: wrap; gap: 6px; }
+  .encounter-context-bar .ctx-field { font-size: 11px; }
+
+  /* Patient table — horizontal scroll */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table { min-width: 600px; }
+
+  /* Encounter tab items */
+  .enc-tab-item { grid-template-columns: 1fr; gap: 4px; padding: 10px; }
+
+  /* Chart tabs */
+  .chart-tabs { flex-wrap: wrap; gap: 2px; }
+  .chart-tab { font-size: 11.5px; padding: 7px 10px; }
+
+  /* Modal */
+  .modal { margin: 10px; max-width: calc(100vw - 20px); }
+
+  /* Order type cards */
+  .order-type-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  /* Login */
+  .login-card { margin: 16px; padding: 24px 16px; }
+
+  /* Problem rows */
+  .problem-row { grid-template-columns: 1fr; gap: 4px; }
+
+  /* Buttons */
+  .btn-sm { font-size: 11px; padding: 5px 10px; }
+
+  /* Sidebar overlay */
+  #sidebar.open ~ #main::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 499;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-summary-bar { grid-template-columns: 1fr; }
+  .order-type-grid { grid-template-columns: 1fr; }
+  .chart-two-col { grid-template-columns: 1fr; }
+
+  /* Vitals grid */
+  .vitals-grid { grid-template-columns: repeat(2, 1fr); }
+}

@@ -32,14 +32,32 @@ function openModal({ title, bodyHTML, footerHTML, size = '', onClose = null }) {
   _modalCloseCallback = onClose;
 
   // Focus first input
-  const first = modal.querySelector('input, select, textarea');
+  const first = modal.querySelector('input, select, textarea, button');
   if (first) setTimeout(() => first.focus(), 50);
+
+  // Focus trap
+  _modalFocusTrap = function(e) {
+    if (e.key !== 'Tab') return;
+    const focusable = modal.querySelectorAll('input, select, textarea, button, [tabindex]:not([tabindex="-1"]), a[href]');
+    if (focusable.length === 0) return;
+    const firstEl = focusable[0];
+    const lastEl = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === firstEl) { e.preventDefault(); lastEl.focus(); }
+    } else {
+      if (document.activeElement === lastEl) { e.preventDefault(); firstEl.focus(); }
+    }
+  };
+  document.addEventListener('keydown', _modalFocusTrap);
 }
+
+let _modalFocusTrap = null;
 
 function closeModal() {
   document.getElementById('modal-backdrop').classList.add('hidden');
   document.getElementById('modal-body').innerHTML   = '';
   document.getElementById('modal-footer').innerHTML = '';
+  if (_modalFocusTrap) { document.removeEventListener('keydown', _modalFocusTrap); _modalFocusTrap = null; }
   if (typeof _modalCloseCallback === 'function') {
     _modalCloseCallback();
     _modalCloseCallback = null;
@@ -255,8 +273,11 @@ function openShortcutsHelp() {
   document.getElementById('sc-close').addEventListener('click', closeModal);
 }
 
+let _keyboardHandler = null;
 function initKeyboardShortcuts() {
-  document.addEventListener('keydown', e => {
+  // Remove previous handler to prevent duplicates on re-login
+  if (_keyboardHandler) document.removeEventListener('keydown', _keyboardHandler);
+  _keyboardHandler = e => {
     // Escape: close modal
     if (e.key === 'Escape') {
       const backdrop = document.getElementById('modal-backdrop');
@@ -291,7 +312,8 @@ function initKeyboardShortcuts() {
       const ta = document.querySelector('.note-textarea');
       if (ta) { e.preventDefault(); ta.dispatchEvent(new Event('input')); }
     }
-  });
+  };
+  document.addEventListener('keydown', _keyboardHandler);
 }
 
 /* ---------- Calculators nav link ---------- */
@@ -383,6 +405,8 @@ let _activityThrottleTimer = null;
 let _sessionWarningShown = false;
 
 function startSessionTimer() {
+  // Clean up any existing timer/listeners first (prevents memory leak on re-login)
+  stopSessionTimer();
   _sessionWarningShown = false;
 
   // Throttled activity listeners
@@ -551,11 +575,34 @@ function initLogout() {
   }
 }
 
+/* ---------- Mobile sidebar toggle ---------- */
+function initSidebarToggle() {
+  const toggle = document.getElementById('sidebar-toggle');
+  const sidebar = document.getElementById('sidebar');
+  if (!toggle || !sidebar) return;
+  toggle.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+  });
+  // Close sidebar when a nav item is clicked (mobile)
+  sidebar.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      if (window.innerWidth <= 768) sidebar.classList.remove('open');
+    });
+  });
+  // Close sidebar overlay when clicking main content on mobile
+  document.getElementById('main').addEventListener('click', () => {
+    if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
+      sidebar.classList.remove('open');
+    }
+  });
+}
+
 /* ---------- App init after authentication ---------- */
 function initAppAfterAuth() {
   initKeyboardShortcuts();
   initCalculatorsNav();
   initEncounterModeToggle();
+  initSidebarToggle();
   if (typeof updateInboxBadge === 'function') updateInboxBadge();
   startSessionTimer();
   updateSessionActivity();

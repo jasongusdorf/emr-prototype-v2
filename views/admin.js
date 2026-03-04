@@ -57,12 +57,12 @@ function renderApprovalsTab(container) {
     html += `
       <div class="admin-card">
         <div class="admin-card-header">
-          <strong>${escapeHTML(name.trim() || 'Unknown')}</strong>
+          <strong>${esc(name.trim() || 'Unknown')}</strong>
           <span class="user-status-badge status-pending">Pending</span>
         </div>
         <div class="admin-card-body">
-          <div><strong>Email:</strong> ${escapeHTML(u.email || '')}</div>
-          <div><strong>Degree:</strong> ${escapeHTML(u.degree || '—')}</div>
+          <div><strong>Email:</strong> ${esc(u.email || '')}</div>
+          <div><strong>Degree:</strong> ${esc(u.degree || '—')}</div>
           <div><strong>Registered:</strong> ${created}</div>
         </div>
         <div class="admin-card-actions">
@@ -151,9 +151,9 @@ function renderUsersTab(container) {
 
     html += `
       <tr>
-        <td>${escapeHTML(name.trim() || 'Unknown')}</td>
-        <td>${escapeHTML(u.email || '')}</td>
-        <td>${escapeHTML(u.degree || '—')}</td>
+        <td>${esc(name.trim() || 'Unknown')}</td>
+        <td>${esc(u.email || '')}</td>
+        <td>${esc(u.degree || '—')}</td>
         <td>${roleLabel}</td>
         <td><span class="user-status-badge ${statusClass}">${status}</span></td>
         <td>${created}</td>
@@ -197,9 +197,9 @@ async function handleAdminResetPassword(targetUserId) {
         openModal({
           title: 'Temporary Password',
           bodyHTML: `
-            <p>A temporary password has been generated for <strong>${escapeHTML(target.email)}</strong>.</p>
+            <p>A temporary password has been generated for <strong>${esc(target.email)}</strong>.</p>
             <div style="margin:16px 0;padding:12px 16px;background:var(--success-light);border-radius:6px;font-size:18px;letter-spacing:1.5px;text-align:center;font-family:monospace;color:var(--success);">
-              ${escapeHTML(tempPw)}
+              ${esc(tempPw)}
             </div>
             <p style="font-size:12px;color:var(--text-muted);">Share this password securely. The user will be required to change it on next login.</p>
           `,
@@ -296,9 +296,9 @@ function renderAuditTab(container) {
     html += `
       <tr>
         <td style="white-space:nowrap;">${ts}</td>
-        <td><span class="audit-action-badge ${cls}">${escapeHTML(e.action || '')}</span></td>
-        <td>${escapeHTML(e.email || '—')}</td>
-        <td>${escapeHTML(e.details || '')}</td>
+        <td><span class="audit-action-badge ${cls}">${esc(e.action || '')}</span></td>
+        <td>${esc(e.email || '—')}</td>
+        <td>${esc(e.details || '')}</td>
       </tr>
     `;
   });
@@ -307,9 +307,4 @@ function renderAuditTab(container) {
   container.innerHTML = html;
 }
 
-/* ---------- Utility: escape HTML ---------- */
-function escapeHTML(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
+/* escapeHTML removed — using global esc() from providers.js */

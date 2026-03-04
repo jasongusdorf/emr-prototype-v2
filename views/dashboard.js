@@ -12,12 +12,13 @@ function renderDashboard() {
   const mode = getEncounterMode();
   const isInpatient = mode === 'inpatient';
 
+  const canEdit = canEditPatient();
   setTopbar({
     title:   isInpatient ? 'Inpatient Census' : 'Patient Dashboard',
     meta:    '',
     actions: isInpatient
-      ? '<button class="btn btn-primary btn-sm" id="btn-new-patient">+ Admit Patient</button>'
-      : '<button class="btn btn-primary btn-sm" id="btn-new-patient">+ New Patient</button>',
+      ? '<button class="btn btn-primary btn-sm" id="btn-new-patient"' + (canEdit ? '' : ' disabled title="You do not have permission to add patients"') + '>+ Admit Patient</button>'
+      : '<button class="btn btn-primary btn-sm" id="btn-new-patient"' + (canEdit ? '' : ' disabled title="You do not have permission to add patients"') + '>+ New Patient</button>',
   });
   setActiveNav('dashboard');
 
@@ -400,8 +401,11 @@ function renderDashboard() {
     refreshTable();
   });
 
-  // Topbar new patient
-  document.getElementById('btn-new-patient').addEventListener('click', () => openNewPatientModal());
+  // Topbar new patient (RBAC-gated)
+  const newPatBtn = document.getElementById('btn-new-patient');
+  if (newPatBtn && !newPatBtn.disabled) {
+    newPatBtn.addEventListener('click', () => openNewPatientModal());
+  }
 }
 
 /* ============================================================
@@ -586,6 +590,7 @@ function openNewPatientModal() {
 }
 
 function confirmDeletePatient(id, onDone) {
+  if (!canEditPatient()) { showToast('You do not have permission to delete patients.', 'error'); return; }
   const pat = getPatient(id);
   if (!pat) return;
 

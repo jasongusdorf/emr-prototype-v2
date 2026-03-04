@@ -182,6 +182,48 @@ function esc(str) {
     .replace(/>/g, '&gt;');
 }
 
+/* Build persistent patient banner (name, DOB, MRN, allergies) */
+function buildPatientBanner(patientId) {
+  const patient = getPatient(patientId);
+  if (!patient) return document.createDocumentFragment();
+  const allergies = (typeof getPatientAllergies === 'function') ? getPatientAllergies(patientId) : [];
+  const age = (() => {
+    if (!patient.dob) return '';
+    const d = new Date(patient.dob); const t = new Date();
+    let a = t.getFullYear() - d.getFullYear();
+    if (t.getMonth() - d.getMonth() < 0 || (t.getMonth() === d.getMonth() && t.getDate() < d.getDate())) a--;
+    return a + 'y';
+  })();
+
+  const banner = document.createElement('div');
+  banner.className = 'patient-banner';
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'patient-banner-name';
+  nameEl.textContent = patient.lastName + ', ' + patient.firstName;
+
+  const metaEl = document.createElement('span');
+  metaEl.className = 'patient-banner-meta';
+  metaEl.textContent = [patient.mrn, patient.dob ? patient.dob + ' (' + age + ')' : '', patient.sex || ''].filter(Boolean).join(' · ');
+
+  banner.appendChild(nameEl);
+  banner.appendChild(metaEl);
+
+  if (allergies.length > 0) {
+    const allergyEl = document.createElement('span');
+    allergyEl.className = 'patient-banner-allergy';
+    allergyEl.textContent = 'Allergies: ' + allergies.map(a => a.allergen).join(', ');
+    banner.appendChild(allergyEl);
+  } else {
+    const nkda = document.createElement('span');
+    nkda.className = 'patient-banner-nkda';
+    nkda.textContent = 'NKDA';
+    banner.appendChild(nkda);
+  }
+
+  return banner;
+}
+
 function buildEmptyState(icon, title, body) {
   const div = document.createElement('div');
   div.className = 'empty-state';

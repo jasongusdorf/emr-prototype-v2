@@ -67,6 +67,14 @@ const OVERVIEW_SUBTABS = [
 function renderChart(patientId, tab) {
   clearTimeout(autosaveTimer);
 
+  if (!canViewChart()) {
+    const app = document.getElementById('app');
+    app.innerHTML = '';
+    app.textContent = 'You do not have permission to view patient charts.';
+    setTopbar({ title: 'Access Denied' });
+    return;
+  }
+
   _currentChartPatientId = patientId;
   _currentChartTab       = tab || 'overview';
   _searchOpen            = false;
@@ -94,6 +102,9 @@ function renderChart(patientId, tab) {
               <button class="btn btn-primary btn-sm no-print" id="btn-new-encounter">+ New Encounter</button>`,
   });
   setActiveNav('dashboard');
+
+  // Patient identity banner
+  app.appendChild(buildPatientBanner(patientId));
 
   // Sticky tab bar
   app.appendChild(buildTabBar(patientId, _currentChartTab));
@@ -2421,6 +2432,7 @@ function _buildNotesGrouped(items, patientId) {
    MODALS — Allergy
    ============================================================ */
 function openAllergyModal(patientId, id) {
+  if (!canEditPatient()) { showToast('You do not have permission to edit patient data.', 'error'); return; }
   const existing = id ? getPatientAllergies(patientId).find(a => a.id === id) : null;
   const isEdit = !!existing;
 
@@ -2535,6 +2547,7 @@ function openPMHModal(patientId, id) {
    MODALS — Medication
    ============================================================ */
 function openMedicationModal(patientId, id) {
+  if (!canEditPatient()) { showToast('You do not have permission to edit patient data.', 'error'); return; }
   const existing = id ? getPatientMedications(patientId).find(m => m.id === id) : null;
   const isEdit = !!existing;
   const units  = ['mg', 'mcg', 'g', 'mEq', 'units', 'mL', 'mg/dL', 'Other'];
@@ -3033,6 +3046,7 @@ function buildSubtypeOptions(subtypes) {
    MODALS — Edit Patient
    ============================================================ */
 function openEditPatientModal(patient, onSave) {
+  if (!canEditPatient()) { showToast('You do not have permission to edit patient data.', 'error'); return; }
   const providers = getProviders();
   const panelProvs = patient.panelProviders || [];
   let providerCheckboxes = providers.map(p => {
@@ -3222,6 +3236,7 @@ function confirmDeleteEncounter(encId, patientId) {
    MODAL — Problem
    ============================================================ */
 function openProblemModal(patientId, id) {
+  if (!canEditPatient()) { showToast('You do not have permission to edit patient data.', 'error'); return; }
   const existing = id ? getActiveProblems(patientId).find(p => p.id === id) : null;
   const isEdit = !!existing;
   const v = key => esc(existing ? (existing[key] || '') : '');
@@ -3734,10 +3749,10 @@ function printPatientSummary(patientId) {
   const v            = vitalsData ? vitalsData.vitals : null;
 
   function row(label, val) {
-    return '<tr><td style="font-weight:600;padding:4px 8px;width:160px">' + label + '</td><td style="padding:4px 8px">' + (val || '—') + '</td></tr>';
+    return '<tr><td style="font-weight:600;padding:4px 8px;width:160px">' + esc(label) + '</td><td style="padding:4px 8px">' + esc(val || '—') + '</td></tr>';
   }
 
-  const html = `<!DOCTYPE html><html><head><title>Patient Summary — ${patient.lastName}, ${patient.firstName}</title>
+  const html = `<!DOCTYPE html><html><head><title>Patient Summary — ${esc(patient.lastName)}, ${esc(patient.firstName)}</title>
   <style>
     body { font-family: Arial, sans-serif; font-size: 13px; color: #000; margin: 20px; }
     h1 { font-size: 20px; margin: 0 0 4px; }
@@ -3750,11 +3765,11 @@ function printPatientSummary(patientId) {
     .badge-ok { background: #d1fae5; color: #065f46; }
     @media print { body { margin: 0; } }
   </style></head><body>
-  <h1>${patient.lastName}, ${patient.firstName}</h1>
-  <div class="mrn">${patient.mrn} · DOB: ${patient.dob || '—'} (${age} y/o) · ${patient.sex || ''} · ${patient.phone || ''}${patient.email ? ' · ' + patient.email : ''}</div>
-  ${patient.addressStreet ? '<div class="mrn">' + [patient.addressStreet, patient.addressCity, patient.addressState, patient.addressZip].filter(Boolean).join(', ') + '</div>' : ''}
-  ${patient.emergencyContactName ? '<div class="mrn">Emergency Contact: ' + patient.emergencyContactName + (patient.emergencyContactPhone ? ' · ' + patient.emergencyContactPhone : '') + (patient.emergencyContactRelationship ? ' (' + patient.emergencyContactRelationship + ')' : '') + '</div>' : ''}
-  ${patient.pharmacyName ? '<div class="mrn">Pharmacy: ' + patient.pharmacyName + (patient.pharmacyPhone ? ' · ' + patient.pharmacyPhone : '') + '</div>' : ''}
+  <h1>${esc(patient.lastName)}, ${esc(patient.firstName)}</h1>
+  <div class="mrn">${esc(patient.mrn)} · DOB: ${esc(patient.dob || '—')} (${age} y/o) · ${esc(patient.sex || '')} · ${esc(patient.phone || '')}${patient.email ? ' · ' + esc(patient.email) : ''}</div>
+  ${patient.addressStreet ? '<div class="mrn">' + esc([patient.addressStreet, patient.addressCity, patient.addressState, patient.addressZip].filter(Boolean).join(', ')) + '</div>' : ''}
+  ${patient.emergencyContactName ? '<div class="mrn">Emergency Contact: ' + esc(patient.emergencyContactName) + (patient.emergencyContactPhone ? ' · ' + esc(patient.emergencyContactPhone) : '') + (patient.emergencyContactRelationship ? ' (' + esc(patient.emergencyContactRelationship) + ')' : '') + '</div>' : ''}
+  ${patient.pharmacyName ? '<div class="mrn">Pharmacy: ' + esc(patient.pharmacyName) + (patient.pharmacyPhone ? ' · ' + esc(patient.pharmacyPhone) : '') + '</div>' : ''}
   <div style="font-size:11px;color:#666;margin-top:2px">Printed: ${new Date().toLocaleString()}</div>
   <h2>Allergies</h2>
   ${allergies.length === 0 ? '<p>No known drug allergies</p>' :

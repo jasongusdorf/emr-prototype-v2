@@ -146,7 +146,7 @@
 
 <div id="shell" class="hidden">
   <!-- ===== Sidebar ===== -->
-  <nav id="sidebar">
+  <nav id="sidebar" role="navigation" aria-label="Main navigation">
     <div class="sidebar-brand">
       <h1>ClinicalEMR</h1>
       <span>Prototype v1.0</span>
@@ -230,9 +230,12 @@
   </nav>
 
   <!-- ===== Main column ===== -->
-  <div id="main">
+  <div id="main" role="main">
     <!-- Topbar -->
     <div id="topbar">
+      <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
       <div id="topbar-title">Loading…</div>
       <div id="topbar-meta"></div>
       <div id="topbar-actions"></div>
