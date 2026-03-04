@@ -33,6 +33,8 @@ const KEYS = {
   session:         'emr_session',
   encounterMode:   'emr_encounter_mode',
   systemAuditLog:  'emr_system_audit_log',
+  messages:        'emr_messages',
+  loginAttempts:   'emr_login_attempts',
 };
 
 /* ---------- Utility ---------- */
@@ -70,6 +72,48 @@ function loadAll(key) {
 
 function saveAll(key, arr) {
   safeSave(key, JSON.stringify(arr));
+}
+
+/* ---------- Generic Validation Helpers (hardening) ---------- */
+/**
+ * validateRequired — checks that each field in `fields` exists on `data`
+ * and is a non-empty string (or truthy value for non-strings).
+ * Returns { valid: boolean, errors: string[] }
+ */
+function validateRequired(data, fields) {
+  const errors = [];
+  fields.forEach(function (f) {
+    if (data[f] === undefined || data[f] === null || (typeof data[f] === 'string' && data[f].trim() === '')) {
+      errors.push(f + ' is required');
+    }
+  });
+  return { valid: errors.length === 0, errors: errors };
+}
+
+/**
+ * validateEmail — returns true if `email` has a valid format.
+ */
+function validateEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+/**
+ * validatePhone — returns true if `phone` has at least 10 digits.
+ */
+function validatePhone(phone) {
+  if (!phone || typeof phone !== 'string') return false;
+  var digits = phone.replace(/\D/g, '');
+  return digits.length >= 10;
+}
+
+/**
+ * validateDate — returns true if `dateStr` is a valid date string.
+ */
+function validateDate(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return false;
+  var d = new Date(dateStr);
+  return !isNaN(d.getTime());
 }
 
 /* ============================================================
@@ -111,6 +155,29 @@ function getPatients() { return loadAll(KEYS.patients); }
 function getPatient(id) { return getPatients().find(p => p.id === id) || null; }
 
 function savePatient(data) {
+  /* --- Data validation (hardening) --- */
+  // Only validate on new patient creation (no existing id) or if names are explicitly being set
+  if (!data.id || !getPatient(data.id)) {
+    const reqCheck = validateRequired(data, ['firstName', 'lastName']);
+    if (!reqCheck.valid) return { error: true, errors: reqCheck.errors };
+    if (typeof data.firstName !== 'string' || data.firstName.trim() === '') {
+      return { error: true, errors: ['firstName must be a non-empty string'] };
+    }
+    if (typeof data.lastName !== 'string' || data.lastName.trim() === '') {
+      return { error: true, errors: ['lastName must be a non-empty string'] };
+    }
+  }
+  if (data.email && data.email.trim() !== '' && !validateEmail(data.email)) {
+    return { error: true, errors: ['Invalid email format'] };
+  }
+  if (data.phone && data.phone.trim() !== '' && !validatePhone(data.phone)) {
+    return { error: true, errors: ['Phone must have at least 10 digits'] };
+  }
+  if (data.dob && data.dob.trim() !== '' && !validateDate(data.dob)) {
+    return { error: true, errors: ['DOB must be a valid date'] };
+  }
+  /* --- End validation --- */
+
   const patients = getPatients();
   const existing = patients.findIndex(p => p.id === data.id);
   if (existing >= 0) {
@@ -224,6 +291,17 @@ function getEncountersByPatient(patientId) {
 function getEncounter(id) { return getEncounters().find(e => e.id === id) || null; }
 
 function saveEncounter(data) {
+  /* --- Data validation (hardening) --- */
+  if (!data.id || !getEncounter(data.id)) {
+    var encReq = validateRequired(data, ['patientId']);
+    if (!encReq.valid) return { error: true, errors: encReq.errors };
+    var VALID_ENCOUNTER_VISIT_TYPES = ['Outpatient', 'Inpatient', 'Emergency'];
+    if (data.visitType && VALID_ENCOUNTER_VISIT_TYPES.indexOf(data.visitType) < 0) {
+      console.warn('saveEncounter: non-standard visitType "' + data.visitType + '". Recommended: Outpatient, Inpatient, Emergency.');
+    }
+  }
+  /* --- End validation --- */
+
   const encounters = getEncounters();
   const existing = encounters.findIndex(e => e.id === data.id);
   if (existing >= 0) {
@@ -323,6 +401,31 @@ function getOrdersByEncounter(encounterId) {
 function getOrder(id) { return getOrders().find(o => o.id === id) || null; }
 
 function saveOrder(data) {
+  /* --- Data validation (hardening) --- */
+  var VALID_ORDER_TYPES = ['Medication', 'Lab', 'Imaging', 'Consult'];
+  if (!data.id || !getOrder(data.id)) {
+    var ordReq = validateRequired(data, ['encounterId', 'patientId']);
+    if (!ordReq.valid) return { error: true, errors: ordReq.errors };
+    if (data.type && VALID_ORDER_TYPES.indexOf(data.type) < 0) {
+      return { error: true, errors: ['Order type must be one of: ' + VALID_ORDER_TYPES.join(', ')] };
+    }
+    var orderType = data.type || 'Medication';
+    var detail = data.detail || {};
+    if (orderType === 'Medication' && (!detail.drug || detail.drug.trim() === '')) {
+      return { error: true, errors: ['Drug name is required for Medication orders'] };
+    }
+    if (orderType === 'Lab' && (!detail.panel || detail.panel.trim() === '')) {
+      return { error: true, errors: ['Panel is required for Lab orders'] };
+    }
+    if (orderType === 'Imaging') {
+      var imgErrors = [];
+      if (!detail.modality || detail.modality.trim() === '') imgErrors.push('Modality is required for Imaging orders');
+      if (!detail.bodyPart || detail.bodyPart.trim() === '') imgErrors.push('Body part is required for Imaging orders');
+      if (imgErrors.length > 0) return { error: true, errors: imgErrors };
+    }
+  }
+  /* --- End validation --- */
+
   const orders = getOrders();
   const existing = orders.findIndex(o => o.id === data.id);
   if (existing >= 0) {
@@ -347,6 +450,10 @@ function saveOrder(data) {
     orders.push(newOrder);
     saveAll(KEYS.orders, orders);
     logAudit('Order Placed', 'order', newOrder.id, newOrder.patientId, newOrder.type);
+    /* --- System audit for order placement (hardening) --- */
+    var orderUser = getSessionUser();
+    logSystemAudit('ORDER_PLACED', orderUser ? orderUser.id : (newOrder.orderedBy || ''), newOrder.patientId, 'Order placed: ' + newOrder.type + ' (id: ' + newOrder.id + ')', orderUser ? orderUser.email : '');
+    /* --- End audit --- */
     return newOrder;
   }
 }
@@ -366,6 +473,12 @@ function updateOrderStatus(id, status) {
   orders[idx].status = status;
   if (status === 'Completed') orders[idx].completedAt = new Date().toISOString();
   saveAll(KEYS.orders, orders);
+  /* --- Audit logging for order status changes (hardening) --- */
+  if (status === 'Cancelled') {
+    var user = getSessionUser();
+    logSystemAudit('ORDER_CANCELLED', user ? user.id : '', orders[idx].patientId, 'Order cancelled: ' + orders[idx].type + ' (id: ' + id + ')', user ? user.email : '');
+  }
+  /* --- End audit --- */
   return orders[idx];
 }
 
@@ -1040,15 +1153,79 @@ async function hashPassword(pw) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+/* ---------- Account Lockout Helpers (hardening) ---------- */
+var MAX_LOGIN_ATTEMPTS = 5;
+var LOCKOUT_MINUTES = 15;
+
+function getLoginAttempts() {
+  try {
+    var raw = localStorage.getItem(KEYS.loginAttempts);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+
+function saveLoginAttempts(data) {
+  safeSave(KEYS.loginAttempts, JSON.stringify(data));
+}
+
+function recordFailedLogin(email) {
+  var all = getLoginAttempts();
+  var record = all[email] || { attempts: 0, lastAttempt: null, lockedUntil: null };
+  record.attempts += 1;
+  record.lastAttempt = new Date().toISOString();
+  if (record.attempts >= MAX_LOGIN_ATTEMPTS) {
+    var lockUntil = new Date();
+    lockUntil.setMinutes(lockUntil.getMinutes() + LOCKOUT_MINUTES);
+    record.lockedUntil = lockUntil.toISOString();
+  }
+  all[email] = record;
+  saveLoginAttempts(all);
+}
+
+function clearLoginAttempts(email) {
+  var all = getLoginAttempts();
+  delete all[email];
+  saveLoginAttempts(all);
+}
+
+function isAccountLocked(email) {
+  var all = getLoginAttempts();
+  var record = all[email];
+  if (!record || !record.lockedUntil) return { locked: false, minutesRemaining: 0 };
+  var lockUntil = new Date(record.lockedUntil);
+  var now = new Date();
+  if (now >= lockUntil) {
+    // Lockout expired — clear
+    clearLoginAttempts(email);
+    return { locked: false, minutesRemaining: 0 };
+  }
+  var remaining = Math.ceil((lockUntil.getTime() - now.getTime()) / 60000);
+  return { locked: true, minutesRemaining: remaining };
+}
+
 async function login(email, password) {
+  /* --- Account lockout check (hardening) --- */
+  var lockStatus = isAccountLocked(email);
+  if (lockStatus.locked) {
+    logSystemAudit('LOGIN_FAILED', '', '', 'Account locked: ' + email, email);
+    return { ok: false, error: 'Account locked. Try again in ' + lockStatus.minutesRemaining + ' minutes.' };
+  }
+  /* --- End lockout check --- */
+
   const user = getUserByEmail(email);
   if (!user) {
+    recordFailedLogin(email);
     logSystemAudit('LOGIN_FAILED', '', '', 'Invalid email: ' + email, email);
     return { ok: false, error: 'Invalid email or password.' };
   }
   const hash = await hashPassword(password);
   if (hash !== user.passwordHash) {
-    logSystemAudit('LOGIN_FAILED', user.id, '', 'Wrong password', user.email);
+    recordFailedLogin(email);
+    logSystemAudit('LOGIN_FAILED', user.id, '', 'Wrong password (attempt ' + ((getLoginAttempts()[email] || {}).attempts || 1) + '/' + MAX_LOGIN_ATTEMPTS + ')', user.email);
+    var afterLock = isAccountLocked(email);
+    if (afterLock.locked) {
+      return { ok: false, error: 'Account locked. Try again in ' + afterLock.minutesRemaining + ' minutes.' };
+    }
     return { ok: false, error: 'Invalid email or password.' };
   }
   // Backwards compat: treat missing status as active
@@ -1061,6 +1238,9 @@ async function login(email, password) {
     logSystemAudit('LOGIN_FAILED', user.id, '', 'Account deactivated', user.email);
     return { ok: false, error: 'Your account has been deactivated. Please contact an administrator.' };
   }
+  /* --- Clear lockout on successful login (hardening) --- */
+  clearLoginAttempts(email);
+  /* --- End lockout clear --- */
   safeSave(KEYS.session, JSON.stringify({ userId: user.id, loginAt: new Date().toISOString(), lastActivity: new Date().toISOString() }));
   logSystemAudit('LOGIN', user.id, '', 'Successful login', user.email);
   return { ok: true, user };
@@ -1139,12 +1319,31 @@ function validatePasswordStrength(password) {
   if (!/[A-Z]/.test(password)) errors.push('At least one uppercase letter');
   if (!/[a-z]/.test(password)) errors.push('At least one lowercase letter');
   if (!/[0-9]/.test(password)) errors.push('At least one number');
+  if (!/[!@#$%^&*()_+\-=\[\]{}|;:',.<>?\/]/.test(password)) errors.push('At least one special character');
   return { valid: errors.length === 0, errors };
+}
+
+/**
+ * validatePasswordComplexity — enhanced password validation including
+ * special character requirement and email comparison.
+ * Returns { valid: boolean, errors: string[] }
+ */
+function validatePasswordComplexity(password, email) {
+  var result = validatePasswordStrength(password);
+  if (email && typeof email === 'string' && password.toLowerCase() === email.toLowerCase()) {
+    result.errors.push('Password cannot be the same as your email address');
+    result.valid = false;
+  }
+  return result;
 }
 
 async function changePassword(userId, newPassword) {
   const user = getUser(userId);
   if (!user) return false;
+  /* --- Validate password complexity on change (hardening) --- */
+  var pwCheck = validatePasswordComplexity(newPassword, user.email);
+  if (!pwCheck.valid) return { error: true, errors: pwCheck.errors };
+  /* --- End validation --- */
   const passwordHash = await hashPassword(newPassword);
   saveUser({ id: userId, passwordHash, mustChangePassword: false, lastPasswordChange: new Date().toISOString() });
   logSystemAudit('PASSWORD_CHANGED', userId, '', 'Password changed', user.email);
@@ -1155,12 +1354,14 @@ function generateTempPassword() {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const lower = 'abcdefghjkmnpqrstuvwxyz';
   const digits = '23456789';
+  const specials = '!@#$%^&*_+-=';
   let pw = '';
   pw += upper[Math.floor(Math.random() * upper.length)];
   pw += lower[Math.floor(Math.random() * lower.length)];
   pw += digits[Math.floor(Math.random() * digits.length)];
-  const all = upper + lower + digits;
-  for (let i = 0; i < 5; i++) pw += all[Math.floor(Math.random() * all.length)];
+  pw += specials[Math.floor(Math.random() * specials.length)];
+  const all = upper + lower + digits + specials;
+  for (let i = 0; i < 4; i++) pw += all[Math.floor(Math.random() * all.length)];
   return pw.split('').sort(() => Math.random() - 0.5).join('');
 }
 
@@ -1243,10 +1444,306 @@ function isAdmin(userId) {
 }
 
 /* ============================================================
+   Role-Based Access Control Helpers (hardening)
+   ============================================================ */
+var ROLE_HIERARCHY = ['admin', 'attending', 'resident', 'nurse', 'medical_assistant', 'front_desk'];
+
+var ROLE_PERMISSIONS = {
+  admin:              ['view_admin', 'place_orders', 'sign_notes', 'edit_patient', 'view_chart', 'send_messages', 'prescribe_controlled', 'export_data'],
+  attending:          ['place_orders', 'sign_notes', 'edit_patient', 'view_chart', 'send_messages', 'prescribe_controlled', 'export_data'],
+  resident:           ['place_orders', 'edit_patient', 'view_chart', 'send_messages'],
+  nurse:              ['edit_patient', 'view_chart', 'send_messages'],
+  medical_assistant:  ['view_chart', 'send_messages'],
+  front_desk:         ['send_messages'],
+  user:               ['view_chart', 'send_messages'],
+};
+
+/**
+ * Normalize role string from user record to lowercase key matching ROLE_PERMISSIONS.
+ * Handles legacy role values like 'Attending', 'Nurse', 'Admin', 'MA', etc.
+ */
+function normalizeRole(role) {
+  if (!role) return 'user';
+  var lower = role.toLowerCase().trim();
+  if (lower === 'ma') return 'medical_assistant';
+  if (lower === 'frontdesk' || lower === 'front desk' || lower === 'front_desk') return 'front_desk';
+  if (lower === 'medical_assistant') return 'medical_assistant';
+  if (ROLE_HIERARCHY.indexOf(lower) >= 0) return lower;
+  return 'user';
+}
+
+/**
+ * hasPermission — check if the current session user has a specific permission.
+ */
+function hasPermission(permission) {
+  var user = getSessionUser();
+  if (!user) return false;
+  var role = normalizeRole(user.role);
+  var perms = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS['user'];
+  return perms.indexOf(permission) >= 0;
+}
+
+/**
+ * canPlaceOrders — attending and resident roles.
+ */
+function canPlaceOrders() {
+  var user = getSessionUser();
+  if (!user) return false;
+  var role = normalizeRole(user.role);
+  return role === 'admin' || role === 'attending' || role === 'resident';
+}
+
+/**
+ * canSignNotes — attending only.
+ */
+function canSignNotes() {
+  var user = getSessionUser();
+  if (!user) return false;
+  var role = normalizeRole(user.role);
+  return role === 'admin' || role === 'attending';
+}
+
+/**
+ * canPrescribeControlled — attending with DEA number.
+ */
+function canPrescribeControlled() {
+  var user = getSessionUser();
+  if (!user) return false;
+  var role = normalizeRole(user.role);
+  if (role !== 'attending' && role !== 'admin') return false;
+  return !!(user.dea && user.dea.trim() !== '');
+}
+
+/**
+ * canViewAdmin — admin role only.
+ */
+function canViewAdmin() {
+  return isAdmin();
+}
+
+/**
+ * canEditPatient — attending, resident, nurse.
+ */
+function canEditPatient() {
+  var user = getSessionUser();
+  if (!user) return false;
+  var role = normalizeRole(user.role);
+  return role === 'admin' || role === 'attending' || role === 'resident' || role === 'nurse';
+}
+
+/**
+ * canViewChart — all clinical roles.
+ */
+function canViewChart() {
+  var user = getSessionUser();
+  if (!user) return false;
+  var role = normalizeRole(user.role);
+  return role === 'admin' || role === 'attending' || role === 'resident' || role === 'nurse' || role === 'medical_assistant' || role === 'user';
+}
+
+/**
+ * canSendMessages — all roles.
+ */
+function canSendMessages() {
+  var user = getSessionUser();
+  return !!user;
+}
+
+/* ============================================================
    Lab Results — global query
    ============================================================ */
 function getAllLabResults() {
   return loadAll(KEYS.labResults).sort((a, b) => new Date(b.resultDate) - new Date(a.resultDate));
+}
+
+/* ============================================================
+   Messages — Patient/Provider messaging
+   ============================================================ */
+function getMessages() {
+  return loadAll(KEYS.messages);
+}
+
+function getMessagesByPatient(patientId) {
+  return getMessages().filter(function(m) { return m.patientId === patientId; });
+}
+
+function getMessageThread(threadId) {
+  return getMessages()
+    .filter(function(m) { return m.threadId === threadId; })
+    .sort(function(a, b) { return new Date(a.createdAt) - new Date(b.createdAt); });
+}
+
+function getUnreadMessages(userId, userType) {
+  return getMessages().filter(function(m) {
+    return m.toId === userId && m.toType === userType && m.status === 'Sent';
+  });
+}
+
+function getUnreadMessageCount(userId, userType) {
+  return getUnreadMessages(userId, userType).length;
+}
+
+function saveMessage(data) {
+  var all = getMessages();
+  var idx = all.findIndex(function(m) { return m.id === data.id; });
+  if (idx >= 0) {
+    all[idx] = Object.assign({}, all[idx], data);
+    saveAll(KEYS.messages, all);
+    return all[idx];
+  }
+  var msg = {
+    id:          generateId(),
+    threadId:    '',
+    type:        'general',
+    fromType:    'provider',
+    fromId:      '',
+    fromName:    '',
+    toType:      'patient',
+    toId:        '',
+    toName:      '',
+    patientId:   '',
+    subject:     '',
+    body:        '',
+    priority:    'Normal',
+    status:      'Sent',
+    readAt:      null,
+    attachments: [],
+    createdAt:   new Date().toISOString(),
+  };
+  Object.assign(msg, data);
+  if (!msg.id) msg.id = generateId();
+  if (!msg.threadId) msg.threadId = msg.id;
+  all.push(msg);
+  saveAll(KEYS.messages, all);
+  logAudit('MESSAGE_SENT', 'message', msg.id, msg.patientId, 'Message sent: ' + msg.subject);
+  /* --- System audit for message sent (hardening) --- */
+  var msgUser = getSessionUser();
+  logSystemAudit('MESSAGE_SENT', msgUser ? msgUser.id : (msg.fromId || ''), msg.patientId || '', 'Message sent: ' + msg.subject, msgUser ? msgUser.email : '');
+  /* --- End audit --- */
+  return msg;
+}
+
+function markMessageRead(messageId) {
+  var all = getMessages();
+  var idx = all.findIndex(function(m) { return m.id === messageId; });
+  if (idx < 0) return null;
+  all[idx].status = 'Read';
+  all[idx].readAt = new Date().toISOString();
+  saveAll(KEYS.messages, all);
+  return all[idx];
+}
+
+/* ============================================================
+   Data Export / Import (hardening — data portability)
+   ============================================================ */
+
+/**
+ * exportAllData — returns a JSON string of ALL localStorage EMR keys.
+ */
+function exportAllData() {
+  var exported = {};
+  var keyNames = Object.keys(KEYS);
+  keyNames.forEach(function (k) {
+    var storageKey = KEYS[k];
+    var raw = localStorage.getItem(storageKey);
+    if (raw !== null) {
+      exported[storageKey] = raw;
+    }
+  });
+  var user = getSessionUser();
+  logSystemAudit('DATA_EXPORT', user ? user.id : '', '', 'Full data export', user ? user.email : '');
+  return JSON.stringify(exported, null, 2);
+}
+
+/**
+ * importAllData — validates and imports data from a JSON string.
+ * Returns { ok: boolean, error?: string, keysImported?: number }
+ */
+function importAllData(jsonString) {
+  var parsed;
+  try {
+    parsed = JSON.parse(jsonString);
+  } catch (e) {
+    return { ok: false, error: 'Invalid JSON format.' };
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return { ok: false, error: 'Expected a JSON object with storage keys.' };
+  }
+  // Validate that keys are known EMR keys
+  var validKeys = Object.values(KEYS);
+  var keysToImport = Object.keys(parsed);
+  var unknownKeys = keysToImport.filter(function (k) { return validKeys.indexOf(k) < 0; });
+  if (unknownKeys.length > 0) {
+    return { ok: false, error: 'Unknown keys found: ' + unknownKeys.join(', ') };
+  }
+  // Perform import
+  var count = 0;
+  keysToImport.forEach(function (k) {
+    safeSave(k, parsed[k]);
+    count++;
+  });
+  var user = getSessionUser();
+  logSystemAudit('DATA_IMPORT', user ? user.id : '', '', 'Imported ' + count + ' keys', user ? user.email : '');
+  return { ok: true, keysImported: count };
+}
+
+/**
+ * exportPatientData — exports a single patient's complete record.
+ * Includes demographics, encounters, orders, notes, allergies, meds, vitals, etc.
+ */
+function exportPatientData(patientId) {
+  var patient = getPatient(patientId);
+  if (!patient) return null;
+  var encounters = getEncountersByPatient(patientId);
+  var encounterIds = encounters.map(function (e) { return e.id; });
+  var notes = getNotes().filter(function (n) { return encounterIds.indexOf(n.encounterId) >= 0; });
+  var orders = getOrdersByPatient(patientId);
+  var allergies = getPatientAllergies(patientId);
+  var medications = getPatientMedications(patientId);
+  var diagnoses = getPatientDiagnoses(patientId);
+  var socialHistory = getSocialHistory(patientId);
+  var surgeries = getPatientSurgeries(patientId);
+  var familyHistory = getFamilyHistory(patientId);
+  var problems = getActiveProblems(patientId);
+  var labResults = getLabResults(patientId);
+  var immunizations = getImmunizations(patientId);
+  var referrals = getReferrals(patientId);
+  var screenings = getScreeningRecords(patientId);
+  var documents = getDocuments(patientId);
+  var vitals = [];
+  encounterIds.forEach(function (eid) {
+    var v = getEncounterVitals(eid);
+    if (v) vitals.push(v);
+  });
+  var messages = getMessagesByPatient(patientId);
+  var auditLog = getAuditLog(patientId);
+
+  var exportData = {
+    exportedAt: new Date().toISOString(),
+    patient: patient,
+    encounters: encounters,
+    notes: notes,
+    orders: orders,
+    allergies: allergies,
+    medications: medications,
+    diagnoses: diagnoses,
+    socialHistory: socialHistory,
+    surgeries: surgeries,
+    familyHistory: familyHistory,
+    problems: problems,
+    labResults: labResults,
+    immunizations: immunizations,
+    referrals: referrals,
+    screenings: screenings,
+    documents: documents,
+    vitals: vitals,
+    messages: messages,
+    auditLog: auditLog,
+  };
+
+  var user = getSessionUser();
+  logSystemAudit('PATIENT_DATA_EXPORT', user ? user.id : '', patientId, 'Patient data export: ' + patient.firstName + ' ' + patient.lastName, user ? user.email : '');
+  return JSON.stringify(exportData, null, 2);
 }
 
 /* ============================================================

@@ -27,12 +27,20 @@ function getFilteredReferralsInbox() {
   return loadAll(KEYS.referrals).filter(r => (r.status === 'Pending' || r.status === 'Sent') && _inboxEncounterFilter(r));
 }
 
+function _getInboxMessageCount() {
+  const user = getSessionUser();
+  if (!user) return 0;
+  const providerId = getCurrentProvider() || user.id;
+  return getUnreadMessageCount(providerId, 'provider');
+}
+
 function getInboxCounts() {
   const labs = getFilteredLabsInbox().length;
   const notes = getFilteredNotesInbox().length;
   const orders = getFilteredOrdersInbox().length;
   const referrals = getFilteredReferralsInbox().length;
-  return { labs, notes, orders, referrals, total: labs + notes + orders + referrals };
+  const messages = _getInboxMessageCount();
+  return { labs, notes, orders, referrals, messages, total: labs + notes + orders + referrals + messages };
 }
 
 function updateInboxBadge() {
@@ -60,6 +68,7 @@ function renderInbox() {
     { key: 'notes',     label: 'Unsigned Notes',  count: counts.notes },
     { key: 'orders',    label: 'Pending Orders',  count: counts.orders },
     { key: 'referrals', label: 'Pending Referrals', count: counts.referrals },
+    { key: 'messages',  label: 'Messages',         count: counts.messages },
   ];
 
   tabDefs.forEach(t => {
@@ -87,6 +96,7 @@ function renderInbox() {
     case 'notes':     buildNotesInbox(card); break;
     case 'orders':    buildOrdersInbox(card); break;
     case 'referrals': buildReferralsInbox(card); break;
+    case 'messages':  buildMessagesInbox(card); break;
   }
 
   app.appendChild(card);
@@ -312,5 +322,413 @@ function buildReferralsInbox(card) {
     item.appendChild(goBtn);
     item.addEventListener('click', () => { if (patient) navigate('#chart/' + patient.id); });
     card.appendChild(item);
+  });
+}
+
+/* ============================================================
+   Messages Tab
+   ============================================================ */
+
+function _getMessageTypeBadgeClass(type) {
+  switch (type) {
+    case 'lab_result':       return 'msg-type-lab';
+    case 'rx_notification':  return 'msg-type-rx';
+    case 'appointment':      return 'msg-type-appt';
+    case 'referral':         return 'msg-type-referral';
+    case 'system':           return 'msg-type-system';
+    default:                 return 'msg-type-general';
+  }
+}
+
+function _getMessageTypeLabel(type) {
+  switch (type) {
+    case 'lab_result':       return 'Lab';
+    case 'rx_notification':  return 'Rx';
+    case 'appointment':      return 'Appt';
+    case 'referral':         return 'Referral';
+    case 'system':           return 'System';
+    default:                 return 'General';
+  }
+}
+
+function _formatMessageTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  const now = new Date();
+  const diffMs = now - d;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return diffMin + 'm ago';
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return diffHr + 'h ago';
+  const diffDays = Math.floor(diffHr / 24);
+  if (diffDays < 7) return diffDays + 'd ago';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function _getMessageThreads() {
+  const user = getSessionUser();
+  if (!user) return [];
+  const providerId = getCurrentProvider() || user.id;
+  const allMsgs = getMessages().filter(function(m) {
+    return m.toId === providerId || m.fromId === providerId;
+  });
+
+  // Group by threadId
+  const threadMap = {};
+  allMsgs.forEach(function(m) {
+    if (!threadMap[m.threadId]) threadMap[m.threadId] = [];
+    threadMap[m.threadId].push(m);
+  });
+
+  // Build thread summaries
+  var threads = [];
+  Object.keys(threadMap).forEach(function(tid) {
+    var msgs = threadMap[tid].sort(function(a, b) {
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
+    var last = msgs[msgs.length - 1];
+    var unreadCount = msgs.filter(function(m) {
+      return m.toId === providerId && m.status === 'Sent';
+    }).length;
+    threads.push({
+      threadId:     tid,
+      patientId:    last.patientId,
+      subject:      msgs[0].subject,
+      type:         msgs[0].type,
+      priority:     last.priority,
+      lastMessage:  last.body,
+      lastSender:   last.fromName,
+      lastTime:     last.createdAt,
+      unreadCount:  unreadCount,
+      messageCount: msgs.length,
+    });
+  });
+
+  // Sort by most recent first
+  threads.sort(function(a, b) {
+    return new Date(b.lastTime) - new Date(a.lastTime);
+  });
+  return threads;
+}
+
+function buildMessagesInbox(card) {
+  // New message button
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)';
+
+  const headerTitle = document.createElement('div');
+  headerTitle.style.cssText = 'font-size:13px;font-weight:600;color:var(--text-secondary)';
+  headerTitle.textContent = 'Message Threads';
+
+  const newBtn = document.createElement('button');
+  newBtn.className = 'btn btn-primary btn-sm';
+  newBtn.textContent = 'New Message';
+  newBtn.addEventListener('click', function() { openComposeMessageModal(); });
+
+  header.appendChild(headerTitle);
+  header.appendChild(newBtn);
+  card.appendChild(header);
+
+  const threads = _getMessageThreads();
+
+  if (threads.length === 0) {
+    card.appendChild(buildEmptyState('💬', 'No messages', 'Send a message to a patient to get started.'));
+    return;
+  }
+
+  threads.forEach(function(thread) {
+    const patient = getPatient(thread.patientId);
+    const item = document.createElement('div');
+    item.className = 'message-thread-item' + (thread.unreadCount > 0 ? ' unread' : '');
+
+    // Unread indicator
+    const indicator = document.createElement('div');
+    indicator.className = 'message-unread-dot';
+    if (thread.unreadCount > 0) {
+      indicator.style.cssText = 'width:8px;height:8px;border-radius:50%;background:var(--accent-blue);flex-shrink:0';
+    } else {
+      indicator.style.cssText = 'width:8px;height:8px;flex-shrink:0';
+    }
+    item.appendChild(indicator);
+
+    const bodyWrap = document.createElement('div');
+    bodyWrap.style.cssText = 'flex:1;min-width:0';
+
+    // Top row: patient name + type badge + time
+    const topRow = document.createElement('div');
+    topRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:2px';
+
+    const patName = document.createElement('div');
+    patName.className = 'message-thread-patient';
+    patName.textContent = patient ? patient.lastName + ', ' + patient.firstName : 'Unknown';
+
+    const typeBadge = document.createElement('span');
+    typeBadge.className = 'message-type-badge ' + _getMessageTypeBadgeClass(thread.type);
+    typeBadge.textContent = _getMessageTypeLabel(thread.type);
+
+    if (thread.priority === 'Urgent') {
+      const urgentBadge = document.createElement('span');
+      urgentBadge.className = 'message-priority-urgent';
+      urgentBadge.textContent = 'Urgent';
+      topRow.appendChild(patName);
+      topRow.appendChild(typeBadge);
+      topRow.appendChild(urgentBadge);
+    } else {
+      topRow.appendChild(patName);
+      topRow.appendChild(typeBadge);
+    }
+
+    bodyWrap.appendChild(topRow);
+
+    // Subject
+    const subjEl = document.createElement('div');
+    subjEl.className = 'message-thread-subject';
+    subjEl.textContent = thread.subject;
+    bodyWrap.appendChild(subjEl);
+
+    // Preview
+    const preview = document.createElement('div');
+    preview.className = 'message-thread-preview';
+    const previewText = thread.lastMessage || '';
+    preview.textContent = thread.lastSender + ': ' + (previewText.length > 80 ? previewText.substring(0, 80) + '...' : previewText);
+    bodyWrap.appendChild(preview);
+
+    item.appendChild(bodyWrap);
+
+    // Right side: time + count
+    const rightCol = document.createElement('div');
+    rightCol.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0';
+
+    const timeEl = document.createElement('div');
+    timeEl.className = 'message-thread-time';
+    timeEl.textContent = _formatMessageTime(thread.lastTime);
+    rightCol.appendChild(timeEl);
+
+    if (thread.unreadCount > 0) {
+      const countBadge = document.createElement('span');
+      countBadge.className = 'message-unread-badge';
+      countBadge.textContent = thread.unreadCount;
+      rightCol.appendChild(countBadge);
+    }
+
+    item.appendChild(rightCol);
+
+    item.addEventListener('click', function() {
+      openMessageThreadModal(thread.threadId);
+    });
+
+    card.appendChild(item);
+  });
+}
+
+/* ---------- Compose Message Modal ---------- */
+function openComposeMessageModal(replyThreadId, replyPatientId) {
+  const user = getSessionUser();
+  if (!user) return;
+  const providerId = getCurrentProvider() || user.id;
+  const provider = getProvider(providerId);
+  const providerName = provider ? provider.firstName + ' ' + provider.lastName + ', ' + provider.degree : (user.firstName + ' ' + user.lastName);
+
+  const isReply = !!replyThreadId;
+  let replyThread = [];
+  let replyPatient = null;
+  if (isReply) {
+    replyThread = getMessageThread(replyThreadId);
+    if (replyPatientId) replyPatient = getPatient(replyPatientId);
+  }
+
+  const patients = getPatients().sort(function(a, b) {
+    return (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName);
+  });
+
+  let patientOptionsHTML = '<option value="">-- Select Patient --</option>';
+  patients.forEach(function(p) {
+    const sel = (replyPatientId && p.id === replyPatientId) ? ' selected' : '';
+    patientOptionsHTML += '<option value="' + esc(p.id) + '"' + sel + '>' + esc(p.lastName + ', ' + p.firstName) + ' (' + esc(p.mrn) + ')</option>';
+  });
+
+  const bodyHTML = '<div class="message-compose">' +
+    '<div class="form-group">' +
+      '<label class="form-label">Patient</label>' +
+      '<select class="form-control" id="msg-patient"' + (isReply ? ' disabled' : '') + '>' + patientOptionsHTML + '</select>' +
+    '</div>' +
+    '<div class="form-group">' +
+      '<label class="form-label">Message Type</label>' +
+      '<select class="form-control" id="msg-type">' +
+        '<option value="general">General</option>' +
+        '<option value="lab_result">Lab Result</option>' +
+        '<option value="rx_notification">Rx Notification</option>' +
+        '<option value="appointment">Appointment</option>' +
+        '<option value="referral">Referral</option>' +
+      '</select>' +
+    '</div>' +
+    '<div class="form-group">' +
+      '<label class="form-label">Subject</label>' +
+      '<input type="text" class="form-control" id="msg-subject" placeholder="Message subject..."' + (isReply && replyThread.length > 0 ? ' value="Re: ' + esc(replyThread[0].subject) + '"' : '') + '>' +
+    '</div>' +
+    '<div class="form-group">' +
+      '<label class="form-label">Priority</label>' +
+      '<select class="form-control" id="msg-priority">' +
+        '<option value="Normal">Normal</option>' +
+        '<option value="Urgent">Urgent</option>' +
+      '</select>' +
+    '</div>' +
+    '<div class="form-group">' +
+      '<label class="form-label">Message</label>' +
+      '<textarea class="form-control" id="msg-body" rows="5" placeholder="Type your message..."></textarea>' +
+    '</div>' +
+  '</div>';
+
+  openModal({
+    title: isReply ? 'Reply to Thread' : 'New Message',
+    bodyHTML: bodyHTML,
+    footerHTML: '<button class="btn btn-secondary" id="msg-cancel">Cancel</button><button class="btn btn-primary" id="msg-send">Send Message</button>',
+    size: 'lg',
+  });
+
+  document.getElementById('msg-cancel').addEventListener('click', closeModal);
+  document.getElementById('msg-send').addEventListener('click', function() {
+    const patientId = isReply ? replyPatientId : document.getElementById('msg-patient').value;
+    const msgType   = document.getElementById('msg-type').value;
+    const subject   = document.getElementById('msg-subject').value.trim();
+    const priority  = document.getElementById('msg-priority').value;
+    const body      = document.getElementById('msg-body').value.trim();
+
+    if (!patientId) { showToast('Please select a patient.', 'error'); return; }
+    if (!subject)   { showToast('Please enter a subject.', 'error'); return; }
+    if (!body)      { showToast('Please enter a message.', 'error'); return; }
+
+    const patient = getPatient(patientId);
+    const toName = patient ? patient.firstName + ' ' + patient.lastName : 'Patient';
+
+    saveMessage({
+      threadId:  isReply ? replyThreadId : '',
+      type:      msgType,
+      fromType:  'provider',
+      fromId:    providerId,
+      fromName:  providerName,
+      toType:    'patient',
+      toId:      patientId,
+      toName:    toName,
+      patientId: patientId,
+      subject:   subject,
+      body:      body,
+      priority:  priority,
+      status:    'Sent',
+    });
+
+    closeModal();
+    showToast('Message sent.', 'success');
+    updateInboxBadge();
+    if (_inboxTab === 'messages') renderInbox();
+  });
+}
+
+/* ---------- Message Thread Modal ---------- */
+function openMessageThreadModal(threadId) {
+  const user = getSessionUser();
+  if (!user) return;
+  const providerId = getCurrentProvider() || user.id;
+
+  const msgs = getMessageThread(threadId);
+  if (msgs.length === 0) return;
+
+  const patientId = msgs[0].patientId;
+  const patient = getPatient(patientId);
+  const patName = patient ? patient.firstName + ' ' + patient.lastName : 'Unknown';
+
+  // Mark unread messages as read
+  let markedAny = false;
+  msgs.forEach(function(m) {
+    if (m.toId === providerId && m.status === 'Sent') {
+      markMessageRead(m.id);
+      markedAny = true;
+    }
+  });
+  if (markedAny) updateInboxBadge();
+
+  // Reload after marking read
+  const freshMsgs = getMessageThread(threadId);
+
+  // Build thread HTML
+  let threadHTML = '<div style="margin-bottom:12px">' +
+    '<strong>Patient:</strong> <span id="msg-thread-patient"></span> &nbsp; ' +
+    '<span class="message-type-badge ' + _getMessageTypeBadgeClass(freshMsgs[0].type) + '">' + esc(_getMessageTypeLabel(freshMsgs[0].type)) + '</span>' +
+    '</div>';
+
+  threadHTML += '<div class="message-thread-view" id="msg-thread-list">';
+  freshMsgs.forEach(function(m) {
+    const isSent = m.fromId === providerId;
+    threadHTML += '<div class="message-bubble ' + (isSent ? 'sent' : 'received') + '">' +
+      '<div class="message-bubble-header">' +
+        '<strong>' + esc(m.fromName) + '</strong>' +
+        '<span class="message-bubble-time">' + esc(_formatMessageTime(m.createdAt)) + '</span>' +
+      '</div>' +
+      '<div class="message-bubble-body">' + esc(m.body) + '</div>';
+    if (m.attachments && m.attachments.length > 0) {
+      threadHTML += '<div class="message-bubble-attachments">';
+      m.attachments.forEach(function(att) {
+        threadHTML += '<span class="message-attachment-chip">' + esc(att.label || att.type) + '</span>';
+      });
+      threadHTML += '</div>';
+    }
+    threadHTML += '</div>';
+  });
+  threadHTML += '</div>';
+
+  // Reply area
+  threadHTML += '<div style="margin-top:12px">' +
+    '<label class="form-label">Reply</label>' +
+    '<textarea class="form-control" id="msg-reply-body" rows="3" placeholder="Type your reply..."></textarea>' +
+  '</div>';
+
+  openModal({
+    title: freshMsgs[0].subject,
+    bodyHTML: threadHTML,
+    footerHTML: '<button class="btn btn-secondary" id="msg-thread-close">Close</button><button class="btn btn-primary" id="msg-thread-reply">Send Reply</button>',
+    size: 'lg',
+    onClose: function() {
+      if (_inboxTab === 'messages') renderInbox();
+    },
+  });
+
+  document.getElementById('msg-thread-patient').textContent = patName;
+
+  // Scroll thread to bottom
+  var listEl = document.getElementById('msg-thread-list');
+  if (listEl) listEl.scrollTop = listEl.scrollHeight;
+
+  document.getElementById('msg-thread-close').addEventListener('click', closeModal);
+  document.getElementById('msg-thread-reply').addEventListener('click', function() {
+    var replyBody = document.getElementById('msg-reply-body').value.trim();
+    if (!replyBody) { showToast('Please enter a reply.', 'error'); return; }
+
+    var provider = getProvider(providerId);
+    var providerName = provider ? provider.firstName + ' ' + provider.lastName + ', ' + provider.degree : (user.firstName + ' ' + user.lastName);
+    var toName = patient ? patient.firstName + ' ' + patient.lastName : 'Patient';
+
+    saveMessage({
+      threadId:  threadId,
+      type:      freshMsgs[0].type,
+      fromType:  'provider',
+      fromId:    providerId,
+      fromName:  providerName,
+      toType:    'patient',
+      toId:      patientId,
+      toName:    toName,
+      patientId: patientId,
+      subject:   freshMsgs[0].subject,
+      body:      replyBody,
+      priority:  freshMsgs[0].priority,
+      status:    'Sent',
+    });
+
+    closeModal();
+    showToast('Reply sent.', 'success');
+    updateInboxBadge();
+    // Re-open the thread to show updated messages
+    openMessageThreadModal(threadId);
   });
 }

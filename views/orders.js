@@ -27,6 +27,7 @@ const CONSULT_SERVICES = [
 let _selectedType     = 'Medication';
 let _selectedPriority = 'Routine';
 let _ordersEncounterId = null;
+let _currentPatientId = null;
 
 function renderOrders(encounterId) {
   clearTimeout(autosaveTimer);  // clear encounter autosave if navigating from encounter view
@@ -45,6 +46,7 @@ function renderOrders(encounterId) {
   }
 
   const patient  = getPatient(encounter.patientId);
+  _currentPatientId = encounter.patientId;
   const provider = getProvider(encounter.providerId);
   const patName  = patient  ? patient.firstName + ' ' + patient.lastName : 'Unknown Patient';
   const provName = provider ? provider.firstName + ' ' + provider.lastName + ', ' + provider.degree : '[Removed Provider]';
@@ -391,7 +393,7 @@ function renderOrderEntryForm(container, encounter, patient) {
   // Drug-allergy check: listen for input changes on the drug field
   typeFieldsContainer.addEventListener('input', e => {
     if (e.target.id === 'med-drug') {
-      _checkDrugAllergy(e.target.value.trim(), encounter.patientId);
+      _checkDrugAllergy(e.target.value.trim(), encounter.patientId, typeFieldsContainer._selectedMedEntry);
     }
   });
 
@@ -434,13 +436,19 @@ function renderTypeFields(container, type) {
   container.innerHTML = '';
 
   if (type === 'Medication') {
+    // Track selected med entry for enhanced allergy checking
+    container._selectedMedEntry = null;
+
     container.innerHTML = `
       <div class="form-group">
         <label class="form-label">Drug Name *</label>
-        <input class="form-control" id="med-drug" placeholder="e.g. Metoprolol" autocomplete="off" />
+        <div class="med-autocomplete-container">
+          <input class="form-control" id="med-drug" placeholder="e.g. Metoprolol" autocomplete="off" />
+        </div>
         <div id="drug-allergy-alert" hidden style="margin-top:6px;background:var(--priority-stat-bg);border:1px solid var(--danger);border-left:4px solid var(--danger);border-radius:var(--radius);padding:8px 12px;color:var(--danger);font-size:12.5px;font-weight:600"></div>
       </div>
-      <div class="form-row-3">
+      <div id="med-dose-pills-container"></div>
+      <div class="form-row-3" id="med-dose-row">
         <div class="form-group">
           <label class="form-label">Dose *</label>
           <input class="form-control" id="med-dose" placeholder="e.g. 25" type="number" min="0" step="any" />
@@ -476,7 +484,41 @@ function renderTypeFields(container, type) {
         <label class="form-label">Indication</label>
         <input class="form-control" id="med-indication" placeholder="Reason for medication" />
       </div>
+      <div id="med-pharmacy-section"></div>
     `;
+
+    // Get encounter/patient context for pharmacy section
+    const encEl = container.closest('[data-encounter-id]') || document.getElementById('order-entry-form');
+    const patIdForPharm = encEl ? encEl.dataset.patientId : null;
+
+    // Attach autocomplete
+    const drugInput = container.querySelector('#med-drug');
+    if (drugInput && typeof attachMedAutocomplete === 'function') {
+      attachMedAutocomplete(drugInput, {
+        onSelect: (medEntry, defaultForm) => {
+          container._selectedMedEntry = medEntry;
+          // Fill drug name
+          drugInput.value = medEntry.generic;
+
+          // Set unit, route, frequency
+          const unitSel  = container.querySelector('#med-unit');
+          const routeSel = container.querySelector('#med-route');
+          const freqSel  = container.querySelector('#med-freq');
+          if (unitSel)  unitSel.value  = defaultForm.unit;
+          if (routeSel) routeSel.value = defaultForm.route;
+          if (freqSel)  freqSel.value  = defaultForm.defaultFreq;
+
+          // Build dose pill selector
+          _renderDosePills(container, medEntry, medEntry.defaultDoseIndex);
+
+          // Trigger allergy check
+          _checkDrugAllergy(medEntry.generic, _currentPatientId, medEntry);
+        },
+      });
+    }
+
+    // Render pharmacy section
+    _renderPharmacySection(container.querySelector('#med-pharmacy-section'), _currentPatientId);
   }
 
   else if (type === 'Lab') {
@@ -686,21 +728,158 @@ function getOrderSubtext(order) {
   }
 }
 
-/* ---------- Drug-Allergy Alert helpers ---------- */
-function _matchingAllergies(drugName, patientId) {
-  if (!drugName || !patientId) return [];
-  const lower = drugName.toLowerCase();
-  return getPatientAllergies(patientId).filter(a =>
-    a.allergen && a.allergen.toLowerCase().includes(lower) ||
-    lower.includes(a.allergen.toLowerCase())
-  );
+/* ---------- Dose Pill Selector ---------- */
+function _renderDosePills(container, medEntry, activeIndex) {
+  const pillsContainer = container.querySelector('#med-dose-pills-container');
+  if (!pillsContainer) return;
+
+  const doseInput = container.querySelector('#med-dose');
+  const unitSel   = container.querySelector('#med-unit');
+  const routeSel  = container.querySelector('#med-route');
+  const freqSel   = container.querySelector('#med-freq');
+
+  let html = '<label class="form-label" style="font-size:12px;margin-bottom:4px">Dose *</label><div class="med-dose-pills">';
+  medEntry.doseForms.forEach((df, i) => {
+    const label = df.dose + (df.unit || '');
+    html += '<div class="med-dose-pill' + (i === activeIndex ? ' active' : '') + '" data-index="' + i + '">' + esc(label) + '</div>';
+  });
+  html += '<div class="med-dose-pill" data-index="custom">Custom</div>';
+  html += '</div>';
+  html += '<div id="med-dose-custom-wrap" hidden style="margin-bottom:8px"><input class="med-dose-custom-input" id="med-dose-custom" type="number" min="0" step="any" placeholder="Enter dose" /></div>';
+  pillsContainer.innerHTML = html;
+
+  // Set the initial dose value
+  if (medEntry.doseForms[activeIndex]) {
+    if (doseInput) doseInput.value = medEntry.doseForms[activeIndex].dose;
+  }
+  // Hide the default dose row (pills replace it)
+  const doseRow = container.querySelector('#med-dose-row');
+  if (doseRow) {
+    const doseGroup = doseRow.querySelector('.form-group:first-child');
+    if (doseGroup) doseGroup.style.display = 'none';
+  }
+
+  // Pill click handlers
+  pillsContainer.querySelectorAll('.med-dose-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      // Clear active state
+      pillsContainer.querySelectorAll('.med-dose-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+
+      const idx = pill.dataset.index;
+      const customWrap = container.querySelector('#med-dose-custom-wrap');
+
+      if (idx === 'custom') {
+        if (customWrap) customWrap.hidden = false;
+        const customInput = container.querySelector('#med-dose-custom');
+        if (customInput) {
+          customInput.focus();
+          customInput.addEventListener('input', () => {
+            if (doseInput) doseInput.value = customInput.value;
+          });
+        }
+        if (doseInput) doseInput.value = '';
+      } else {
+        if (customWrap) customWrap.hidden = true;
+        const df = medEntry.doseForms[parseInt(idx)];
+        if (df) {
+          if (doseInput) doseInput.value = df.dose;
+          if (unitSel)  unitSel.value  = df.unit;
+          if (routeSel) routeSel.value = df.route;
+          if (freqSel)  freqSel.value  = df.defaultFreq;
+        }
+      }
+    });
+  });
 }
 
-function _checkDrugAllergy(drugName, patientId) {
+/* ---------- Pharmacy Section in Order Form ---------- */
+function _renderPharmacySection(sectionEl, patientId) {
+  if (!sectionEl || !patientId) return;
+  const patient = getPatient(patientId);
+  if (!patient) return;
+
+  const pharmName  = patient.pharmacyName || '';
+  const pharmPhone = patient.pharmacyPhone || '';
+
+  if (pharmName) {
+    sectionEl.innerHTML =
+      '<div style="margin-top:12px">' +
+        '<label class="form-label" style="font-size:12px">Pharmacy</label>' +
+        '<div class="pharmacy-current" id="pharm-current-display">' +
+          '<strong>' + esc(pharmName) + '</strong>' +
+          (pharmPhone ? ' · ' + esc(pharmPhone) : '') +
+          '<button class="btn btn-secondary" id="pharm-change-btn" style="margin-left:auto;font-size:11px;padding:3px 10px">Change</button>' +
+        '</div>' +
+        '<div id="pharm-lookup-inline" hidden></div>' +
+      '</div>';
+  } else {
+    sectionEl.innerHTML =
+      '<div style="margin-top:12px">' +
+        '<label class="form-label" style="font-size:12px">Pharmacy</label>' +
+        '<div class="pharmacy-current">' +
+          '<span style="color:var(--text-muted);font-size:12px">No pharmacy on file</span>' +
+          '<button class="btn btn-secondary" id="pharm-change-btn" style="margin-left:auto;font-size:11px;padding:3px 10px">Find Pharmacy</button>' +
+        '</div>' +
+        '<div id="pharm-lookup-inline" hidden></div>' +
+      '</div>';
+  }
+
+  const changeBtn = sectionEl.querySelector('#pharm-change-btn');
+  const lookupDiv = sectionEl.querySelector('#pharm-lookup-inline');
+
+  if (changeBtn && lookupDiv) {
+    changeBtn.addEventListener('click', () => {
+      lookupDiv.hidden = !lookupDiv.hidden;
+      if (!lookupDiv.hidden && lookupDiv.children.length === 0) {
+        renderPharmacyLookup(lookupDiv, {
+          zip: patient.addressZip || '',
+          onSelect: (pharm) => {
+            // Update patient record
+            savePatient({
+              id: patient.id,
+              pharmacyName:  pharm.name,
+              pharmacyPhone: pharm.phone,
+              pharmacyFax:   pharm.fax,
+            });
+            // Re-render pharmacy section
+            _renderPharmacySection(sectionEl, patientId);
+            showToast('Pharmacy updated to ' + pharm.name, 'success');
+          },
+        });
+      }
+    });
+  }
+}
+
+/* ---------- Drug-Allergy Alert helpers ---------- */
+function _matchingAllergies(drugName, patientId, medEntry) {
+  if (!drugName || !patientId) return [];
+  const lower = drugName.toLowerCase();
+  const allergies = getPatientAllergies(patientId);
+
+  return allergies.filter(a => {
+    if (!a.allergen) return false;
+    const allergenLower = a.allergen.toLowerCase();
+
+    // Direct name match (existing behavior)
+    if (allergenLower.includes(lower) || lower.includes(allergenLower)) return true;
+
+    // Enhanced: check allergyTags for class-level cross-reactivity
+    if (medEntry && medEntry.allergyTags) {
+      for (const tag of medEntry.allergyTags) {
+        if (allergenLower.includes(tag) || tag.includes(allergenLower)) return true;
+      }
+    }
+    return false;
+  });
+}
+
+function _checkDrugAllergy(drugName, patientId, medEntry) {
   const alertDiv = document.getElementById('drug-allergy-alert');
   if (!alertDiv) return;
   if (!drugName) { alertDiv.hidden = true; alertDiv.textContent = ''; return; }
-  const matches = _matchingAllergies(drugName, patientId);
+  const matches = _matchingAllergies(drugName, patientId, medEntry);
   if (matches.length > 0) {
     const msg = '⚠ Allergy Alert: ' + matches.map(a => a.allergen + ' (' + a.severity + ' — ' + a.reaction + ')').join('; ');
     alertDiv.textContent = msg;

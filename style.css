@@ -779,6 +779,129 @@ select.form-control { cursor: pointer; }
 .priority-pill.active.urgent  { border-color: var(--priority-urgent); }
 .priority-pill.active.stat    { border-color: var(--priority-stat); }
 
+/* Medication autocomplete */
+.med-autocomplete-container { position: relative; }
+
+.med-autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+}
+
+.med-autocomplete-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
+}
+.med-autocomplete-item:last-child { border-bottom: none; }
+.med-autocomplete-item:hover,
+.med-autocomplete-item.highlighted { background: var(--accent-blue-light); }
+
+.med-autocomplete-drug { font-weight: 600; color: var(--text-primary); }
+.med-autocomplete-brand { color: var(--text-muted); font-size: 12px; }
+.med-autocomplete-class {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--priority-routine-bg);
+  color: var(--priority-routine);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* Dose pill selector */
+.med-dose-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  margin-bottom: 4px;
+}
+
+.med-dose-pill {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 2px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  transition: all var(--transition);
+}
+.med-dose-pill:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+.med-dose-pill.active {
+  border-color: var(--accent-blue);
+  background: var(--accent-blue-light);
+  color: var(--accent-blue);
+}
+
+.med-dose-custom-input {
+  width: 80px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 2px solid var(--accent-blue);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  margin-left: 4px;
+}
+
+/* Pharmacy lookup */
+.pharmacy-lookup {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--bg-base);
+  margin-top: 8px;
+}
+
+.pharmacy-item {
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  margin-bottom: 6px;
+  transition: border-color var(--transition);
+}
+.pharmacy-item:hover { border-color: var(--accent-blue); }
+.pharmacy-item:last-child { margin-bottom: 0; }
+
+/* Pharmacy current display in orders */
+.pharmacy-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+.pharmacy-current strong { color: var(--text-primary); }
+
 /* Order list grouping */
 .order-group { margin-bottom: 16px; }
 
@@ -2662,4 +2785,216 @@ body.dark-mode .appt-in-progress { background: #2e1065; color: #c4b5fd; border-l
 .dark-mode .audit-action-badge.audit-logout {
   background: #2d3748;
   color: #a0aec0;
+}
+
+/* ============================================================
+   Messages — Thread list & conversation view
+   ============================================================ */
+
+/* Thread list items */
+.message-thread-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.message-thread-item:last-child { border-bottom: none; }
+.message-thread-item:hover { background: var(--accent-blue-light); }
+
+.message-thread-item.unread {
+  border-left: 3px solid var(--accent-blue);
+}
+.message-thread-item.unread .message-thread-patient,
+.message-thread-item.unread .message-thread-subject {
+  font-weight: 700;
+}
+
+.message-thread-patient {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-thread-subject {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-thread-preview {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.message-thread-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.message-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--accent-blue);
+  color: #fff;
+}
+
+/* Message type badges */
+.message-type-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.msg-type-general  { background: var(--priority-routine-bg); color: var(--priority-routine); }
+.msg-type-lab      { background: #bee3f8; color: #2a69ac; }
+.msg-type-rx       { background: #e9d8fd; color: #553c9a; }
+.msg-type-appt     { background: #c6f6d5; color: #22543d; }
+.msg-type-referral { background: #fbd38d; color: #7b341e; }
+.msg-type-system   { background: var(--border); color: var(--text-muted); }
+
+/* Urgent priority badge */
+.message-priority-urgent {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+/* Thread conversation view */
+.message-thread-view {
+  max-height: 350px;
+  overflow-y: auto;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Chat bubbles */
+.message-bubble {
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.message-bubble.sent {
+  align-self: flex-end;
+  background: var(--accent-blue);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.message-bubble.received {
+  align-self: flex-start;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+
+.message-bubble-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.message-bubble.sent .message-bubble-header { color: rgba(255,255,255,0.8); }
+.message-bubble.sent .message-bubble-header strong { color: #fff; }
+
+.message-bubble.received .message-bubble-header { color: var(--text-muted); }
+.message-bubble.received .message-bubble-header strong { color: var(--text-secondary); }
+
+.message-bubble-time {
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.message-bubble-body {
+  white-space: pre-wrap;
+}
+
+.message-bubble-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.message-attachment-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255,255,255,0.2);
+  color: inherit;
+}
+.message-bubble.received .message-attachment-chip {
+  background: var(--border);
+  color: var(--text-secondary);
+}
+
+/* Compose form */
+.message-compose .form-group { margin-bottom: 14px; }
+
+/* --- Dark mode overrides for messages --- */
+.dark-mode .message-thread-item:hover { background: var(--bg-sidebar-hover); }
+.dark-mode .message-thread-item.unread { border-left-color: var(--accent-blue); }
+
+.dark-mode .message-bubble.received {
+  background: var(--bg-surface);
+  border-color: var(--border);
+}
+
+.dark-mode .msg-type-lab      { background: #1a365d; color: #90cdf4; }
+.dark-mode .msg-type-rx       { background: #322659; color: #d6bcfa; }
+.dark-mode .msg-type-appt     { background: #1c4532; color: #9ae6b4; }
+.dark-mode .msg-type-referral { background: #652b19; color: #fbd38d; }
+.dark-mode .msg-type-system   { background: #2d3748; color: #a0aec0; }
+.dark-mode .msg-type-general  { background: #2d3748; color: #a0aec0; }
+
+.dark-mode .message-priority-urgent {
+  background: #3b1010;
+  color: #fc8181;
+}
+
+.dark-mode .message-bubble.received .message-attachment-chip {
+  background: var(--border);
+  color: var(--text-secondary);
 }

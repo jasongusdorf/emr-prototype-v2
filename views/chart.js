@@ -2544,10 +2544,13 @@ function openMedicationModal(patientId, id) {
   const bodyHTML = `
     <div class="form-group">
       <label class="form-label">Medication Name *</label>
-      <input class="form-control" id="med-name" value="${existing ? esc(existing.name) : ''}"
-        placeholder="Generic or brand name" />
+      <div class="med-autocomplete-container">
+        <input class="form-control" id="med-name" value="${existing ? esc(existing.name) : ''}"
+          placeholder="Generic or brand name" />
+      </div>
     </div>
-    <div class="form-row-3">
+    <div id="chart-med-dose-pills-container"></div>
+    <div class="form-row-3" id="chart-med-dose-row">
       <div class="form-group">
         <label class="form-label">Dose</label>
         <input class="form-control" id="med-dose" value="${existing ? esc(existing.dose) : ''}" placeholder="e.g. 10" />
@@ -2610,6 +2613,74 @@ function openMedicationModal(patientId, id) {
   `;
 
   openModal({ title: isEdit ? 'Edit Medication' : 'Add Medication', bodyHTML, footerHTML, size: 'lg' });
+
+  // Attach medication autocomplete
+  const medNameInput = document.getElementById('med-name');
+  if (medNameInput && typeof attachMedAutocomplete === 'function') {
+    attachMedAutocomplete(medNameInput, {
+      onSelect: (medEntry, defaultForm) => {
+        medNameInput.value = medEntry.generic;
+        const doseInput = document.getElementById('med-dose');
+        const unitSel   = document.getElementById('med-unit');
+        const routeSel  = document.getElementById('med-route');
+        const freqSel   = document.getElementById('med-freq');
+        const indInput  = document.getElementById('med-indication');
+
+        if (unitSel)  unitSel.value  = defaultForm.unit;
+        if (routeSel) routeSel.value = defaultForm.route;
+        if (freqSel)  freqSel.value  = defaultForm.defaultFreq;
+        if (indInput && !indInput.value && medEntry.commonIndications.length > 0) {
+          indInput.value = medEntry.commonIndications[0];
+        }
+
+        // Build dose pills
+        const pillsContainer = document.getElementById('chart-med-dose-pills-container');
+        if (pillsContainer) {
+          let html = '<label class="form-label" style="font-size:12px;margin-bottom:4px">Dose</label><div class="med-dose-pills">';
+          medEntry.doseForms.forEach((df, i) => {
+            html += '<div class="med-dose-pill' + (i === medEntry.defaultDoseIndex ? ' active' : '') + '" data-index="' + i + '">' + esc(df.dose + (df.unit || '')) + '</div>';
+          });
+          html += '<div class="med-dose-pill" data-index="custom">Custom</div></div>';
+          html += '<div id="chart-med-dose-custom-wrap" hidden style="margin-bottom:8px"><input class="med-dose-custom-input" id="chart-med-dose-custom" type="number" min="0" step="any" placeholder="Enter dose" /></div>';
+          pillsContainer.innerHTML = html;
+
+          if (medEntry.doseForms[medEntry.defaultDoseIndex]) {
+            if (doseInput) doseInput.value = medEntry.doseForms[medEntry.defaultDoseIndex].dose;
+          }
+          // Hide default dose input
+          const doseRow = document.getElementById('chart-med-dose-row');
+          if (doseRow) {
+            const doseGroup = doseRow.querySelector('.form-group:first-child');
+            if (doseGroup) doseGroup.style.display = 'none';
+          }
+
+          pillsContainer.querySelectorAll('.med-dose-pill').forEach(pill => {
+            pill.addEventListener('click', () => {
+              pillsContainer.querySelectorAll('.med-dose-pill').forEach(p => p.classList.remove('active'));
+              pill.classList.add('active');
+              const idx = pill.dataset.index;
+              const customWrap = document.getElementById('chart-med-dose-custom-wrap');
+              if (idx === 'custom') {
+                if (customWrap) customWrap.hidden = false;
+                const ci = document.getElementById('chart-med-dose-custom');
+                if (ci) { ci.focus(); ci.addEventListener('input', () => { if (doseInput) doseInput.value = ci.value; }); }
+                if (doseInput) doseInput.value = '';
+              } else {
+                if (customWrap) customWrap.hidden = true;
+                const df = medEntry.doseForms[parseInt(idx)];
+                if (df) {
+                  if (doseInput) doseInput.value = df.dose;
+                  if (unitSel)  unitSel.value  = df.unit;
+                  if (routeSel) routeSel.value = df.route;
+                  if (freqSel)  freqSel.value  = df.defaultFreq;
+                }
+              }
+            });
+          });
+        }
+      },
+    });
+  }
 
   document.getElementById('med-cancel').addEventListener('click', closeModal);
   document.getElementById('med-save').addEventListener('click', () => {
@@ -3060,6 +3131,10 @@ function openEditPatientModal(patient, onSave) {
         <input class="form-control" id="ep-pharm-fax" value="${esc(patient.pharmacyFax || '')}" />
       </div>
     </div>
+    <div style="margin-bottom:8px">
+      <button class="btn btn-secondary" id="ep-find-pharmacy-btn" style="font-size:11px;padding:4px 12px">Find Pharmacy</button>
+      <div id="ep-pharmacy-lookup" hidden style="margin-top:8px"></div>
+    </div>
     <h4 style="font-size:13px;font-weight:600;color:var(--text-secondary);margin:12px 0 6px">Panel Providers</h4>
     <div id="ep-panel-provs" style="display:flex;flex-direction:column;gap:4px">${providerCheckboxes || '<span style="color:var(--text-muted);font-size:13px">No providers available</span>'}</div>
   `;
@@ -3070,6 +3145,28 @@ function openEditPatientModal(patient, onSave) {
   `;
 
   openModal({ title: 'Edit Patient', bodyHTML, footerHTML, size: 'lg' });
+
+  // Pharmacy lookup button
+  const findPharmBtn = document.getElementById('ep-find-pharmacy-btn');
+  const pharmLookupDiv = document.getElementById('ep-pharmacy-lookup');
+  if (findPharmBtn && pharmLookupDiv && typeof renderPharmacyLookup === 'function') {
+    findPharmBtn.addEventListener('click', () => {
+      pharmLookupDiv.hidden = !pharmLookupDiv.hidden;
+      if (!pharmLookupDiv.hidden && pharmLookupDiv.children.length === 0) {
+        renderPharmacyLookup(pharmLookupDiv, {
+          zip: document.getElementById('ep-zip').value.trim() || patient.addressZip || '',
+          onSelect: (pharm) => {
+            document.getElementById('ep-pharm-name').value  = pharm.name;
+            document.getElementById('ep-pharm-phone').value = pharm.phone;
+            document.getElementById('ep-pharm-fax').value   = pharm.fax;
+            pharmLookupDiv.hidden = true;
+            showToast('Pharmacy selected: ' + pharm.name, 'success');
+          },
+        });
+      }
+    });
+  }
+
   document.getElementById('ep-cancel').addEventListener('click', closeModal);
   document.getElementById('ep-save').addEventListener('click', () => {
     const firstName = document.getElementById('ep-first').value.trim();
