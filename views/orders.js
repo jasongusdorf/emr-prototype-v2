@@ -524,15 +524,12 @@ function renderTypeFields(container, type) {
   else if (type === 'Lab') {
     container.innerHTML = `
       <div class="form-group">
-        <label class="form-label">Panel *</label>
-        <select class="form-control" id="lab-panel">
-          ${LAB_PANELS.map(p => `<option>${esc(p)}</option>`).join('')}
-        </select>
+        <label class="form-label">Search Lab Test *</label>
+        <div class="med-autocomplete-container">
+          <input class="form-control" id="lab-search" placeholder="Type to search labs (e.g. CBC, BMP, TSH)..." autocomplete="off" />
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Individual Tests (comma-separated)</label>
-        <input class="form-control" id="lab-tests" placeholder="e.g. Na, K, Cl, CO2" />
-      </div>
+      <div id="lab-detail-section"></div>
       <div class="form-group">
         <label class="form-label">Specimen</label>
         <select class="form-control" id="lab-specimen">
@@ -545,28 +542,123 @@ function renderTypeFields(container, type) {
           <option>Other</option>
         </select>
       </div>
+      <div class="form-group">
+        <label class="form-label">Additional Tests (comma-separated)</label>
+        <input class="form-control" id="lab-tests" placeholder="e.g. Na, K, Cl, CO2" />
+      </div>
     `;
+    // Attach lab autocomplete
+    if (typeof attachLabAutocomplete === 'function') {
+      const labInput = container.querySelector('#lab-search');
+      attachLabAutocomplete(labInput, {
+        onSelect: function(labEntry) {
+          container._selectedLabEntry = labEntry;
+          // Auto-fill specimen
+          const specSel = container.querySelector('#lab-specimen');
+          if (specSel && labEntry.specimen) {
+            for (let i = 0; i < specSel.options.length; i++) {
+              if (specSel.options[i].text === labEntry.specimen || labEntry.specimen.toLowerCase().indexOf(specSel.options[i].text.toLowerCase()) >= 0) {
+                specSel.selectedIndex = i; break;
+              }
+            }
+          }
+          // Show detail section
+          const detailDiv = container.querySelector('#lab-detail-section');
+          if (detailDiv) {
+            let html = '<div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;">';
+            html += '<div style="font-weight:600;font-size:13px;color:var(--text-primary);margin-bottom:4px;">' + esc(labEntry.name);
+            if (labEntry.abbreviation) html += ' <span style="color:var(--text-muted);">(' + esc(labEntry.abbreviation) + ')</span>';
+            html += '</div>';
+            html += '<div style="color:var(--text-secondary);">' + esc(labEntry.category) + ' · ' + esc(labEntry.tubeColor) + ' · ' + esc(labEntry.volume) + '</div>';
+            if (labEntry.turnaroundTime) html += '<div style="color:var(--text-muted);margin-top:2px;">TAT: ' + esc(labEntry.turnaroundTime) + '</div>';
+            if (labEntry.specialInstructions) html += '<div style="color:var(--warning);margin-top:2px;">' + esc(labEntry.specialInstructions) + '</div>';
+            if (labEntry.isPanel && labEntry.components.length > 0) html += '<div style="color:var(--text-muted);margin-top:4px;"><strong>Components:</strong> ' + labEntry.components.map(c => esc(c)).join(', ') + '</div>';
+            html += '</div>';
+            detailDiv.innerHTML = html;
+          }
+        }
+      });
+    }
   }
 
   else if (type === 'Imaging') {
     container.innerHTML = `
+      <div class="form-group">
+        <label class="form-label">Search Imaging Study *</label>
+        <div class="med-autocomplete-container">
+          <input class="form-control" id="img-search" placeholder="Type to search (e.g. CT Head, MRI Knee, Chest X-Ray)..." autocomplete="off" />
+        </div>
+      </div>
+      <div id="img-detail-section"></div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Modality *</label>
-          <select class="form-control" id="img-modality">
-            ${IMAGING_MODALITIES.map(m => `<option>${esc(m)}</option>`).join('')}
-          </select>
+          <label class="form-label">Modality</label>
+          <input class="form-control" id="img-modality" readonly placeholder="Auto-filled" />
         </div>
         <div class="form-group">
-          <label class="form-label">Body Part *</label>
+          <label class="form-label">Body Part</label>
           <input class="form-control" id="img-body" placeholder="e.g. Chest, Brain" />
         </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Laterality</label>
+        <select class="form-control" id="img-laterality">
+          <option value="N/A">N/A</option>
+          <option value="Left">Left</option>
+          <option value="Right">Right</option>
+          <option value="Bilateral">Bilateral</option>
+        </select>
       </div>
       <div class="form-group">
         <label class="form-label">Clinical Indication *</label>
         <input class="form-control" id="img-indication" placeholder="Reason for study" />
       </div>
     `;
+    // Attach imaging autocomplete
+    if (typeof attachImagingAutocomplete === 'function') {
+      const imgInput = container.querySelector('#img-search');
+      attachImagingAutocomplete(imgInput, {
+        onSelect: function(imgEntry) {
+          container._selectedImgEntry = imgEntry;
+          // Auto-fill fields
+          const modInput = container.querySelector('#img-modality');
+          if (modInput) modInput.value = imgEntry.modality;
+          const bodyInput = container.querySelector('#img-body');
+          if (bodyInput) bodyInput.value = imgEntry.bodyRegion;
+          // Set laterality options
+          const latSel = container.querySelector('#img-laterality');
+          if (latSel) {
+            if (imgEntry.lateralityOptions && imgEntry.lateralityOptions.length > 0) {
+              latSel.innerHTML = imgEntry.lateralityOptions.map(l => '<option value="' + esc(l) + '">' + esc(l) + '</option>').join('');
+              latSel.value = imgEntry.laterality || imgEntry.lateralityOptions[0];
+              latSel.disabled = false;
+            } else {
+              latSel.innerHTML = '<option value="N/A">N/A</option>';
+              latSel.disabled = true;
+            }
+          }
+          // Show detail section
+          const detailDiv = container.querySelector('#img-detail-section');
+          if (detailDiv) {
+            let html = '<div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;">';
+            html += '<div style="font-weight:600;font-size:13px;color:var(--text-primary);margin-bottom:4px;">' + esc(imgEntry.name) + '</div>';
+            html += '<div style="color:var(--text-secondary);">' + esc(imgEntry.modality) + ' · ' + esc(imgEntry.bodyRegion) + ' · CPT: ' + esc(imgEntry.cptCode) + '</div>';
+            if (imgEntry.contrast !== 'None') html += '<div style="color:var(--accent);margin-top:2px;">Contrast: ' + esc(imgEntry.contrast) + '</div>';
+            if (imgEntry.estimatedDuration) html += '<div style="color:var(--text-muted);margin-top:2px;">Duration: ' + esc(imgEntry.estimatedDuration) + '</div>';
+            if (imgEntry.radiationDose) html += '<div style="color:var(--text-muted);">Radiation: ' + esc(imgEntry.radiationDose) + '</div>';
+            if (imgEntry.patientPrep && imgEntry.patientPrep.length > 0) html += '<div style="color:var(--warning);margin-top:4px;"><strong>Prep:</strong> ' + imgEntry.patientPrep.map(p => esc(p)).join('; ') + '</div>';
+            if (imgEntry.specialInstructions) html += '<div style="color:var(--warning);margin-top:2px;">' + esc(imgEntry.specialInstructions) + '</div>';
+            html += '</div>';
+            detailDiv.innerHTML = html;
+          }
+          // Pre-fill common indication if empty
+          const indInput = container.querySelector('#img-indication');
+          if (indInput && !indInput.value && imgEntry.commonIndications && imgEntry.commonIndications.length > 0) {
+            indInput.placeholder = 'e.g. ' + imgEntry.commonIndications.slice(0, 3).join(', ');
+          }
+        }
+      });
+    }
   }
 
   else if (type === 'Consult') {
@@ -620,23 +712,43 @@ function placeOrder(encounter, patient) {
   }
 
   else if (type === 'Lab') {
-    const panel = document.getElementById('lab-panel')?.value;
-    if (!panel) { showToast('Panel is required.', 'error'); return; }
+    const labSearch = document.getElementById('lab-search')?.value.trim();
+    if (!labSearch) { showToast('Lab test is required.', 'error'); return; }
     const testsRaw = document.getElementById('lab-tests')?.value.trim() || '';
     const tests    = testsRaw ? testsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
+    const typeFieldsContainer = document.getElementById('type-fields');
+    const labEntry = typeFieldsContainer?._selectedLabEntry || null;
     detail = {
-      panel,
+      panel: labSearch,
       tests,
       specimen: document.getElementById('lab-specimen')?.value,
+      tubeColor: labEntry ? labEntry.tubeColor : '',
+      cptCode: labEntry ? labEntry.cptCode : '',
+      fasting: labEntry ? labEntry.fasting : false,
+      specialInstructions: labEntry ? labEntry.specialInstructions : '',
     };
   }
 
   else if (type === 'Imaging') {
-    const modality  = document.getElementById('img-modality')?.value;
-    const bodyPart  = document.getElementById('img-body')?.value.trim();
+    const imgSearch  = document.getElementById('img-search')?.value.trim();
+    const modality   = document.getElementById('img-modality')?.value;
+    const bodyPart   = document.getElementById('img-body')?.value.trim();
     const indication = document.getElementById('img-indication')?.value.trim();
-    if (!bodyPart || !indication) { showToast('Body part and indication are required.', 'error'); return; }
-    detail = { modality, bodyPart, indication };
+    const laterality = document.getElementById('img-laterality')?.value || 'N/A';
+    if (!imgSearch && !bodyPart) { showToast('Imaging study or body part is required.', 'error'); return; }
+    if (!indication) { showToast('Clinical indication is required.', 'error'); return; }
+    const typeFieldsContainer = document.getElementById('type-fields');
+    const imgEntry = typeFieldsContainer?._selectedImgEntry || null;
+    detail = {
+      study: imgSearch || (modality + ' ' + bodyPart),
+      modality: modality || '',
+      bodyPart,
+      indication,
+      laterality,
+      contrast: imgEntry ? imgEntry.contrast : 'None',
+      cptCode: imgEntry ? imgEntry.cptCode : '',
+      patientPrep: imgEntry ? (imgEntry.patientPrep || []).join('; ') : '',
+    };
   }
 
   else if (type === 'Consult') {
