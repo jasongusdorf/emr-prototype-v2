@@ -27,6 +27,12 @@ const KEYS = {
   auditLog:      'emr_audit_log',
   medRec:        'emr_med_rec',
   noteTemplates: 'emr_note_templates',
+  appointments:  'emr_appointments',
+  currentProvider: 'emr_current_provider',
+  users:           'emr_users',
+  session:         'emr_session',
+  encounterMode:   'emr_encounter_mode',
+  systemAuditLog:  'emr_system_audit_log',
 };
 
 /* ---------- Utility ---------- */
@@ -67,6 +73,37 @@ function saveAll(key, arr) {
 }
 
 /* ============================================================
+   Encounter Mode (Outpatient / Inpatient)
+   ============================================================ */
+function getEncounterMode() {
+  const v = localStorage.getItem(KEYS.encounterMode);
+  return v === 'inpatient' ? 'inpatient' : 'outpatient';
+}
+
+function setEncounterMode(mode) {
+  if (mode !== 'outpatient' && mode !== 'inpatient') return;
+  safeSave(KEYS.encounterMode, mode);
+}
+
+function encounterMatchesMode(encounter, mode) {
+  if (!encounter) return true;
+  const vt = (encounter.visitType || '').toLowerCase();
+  if (mode === 'inpatient') {
+    return vt === 'inpatient';
+  }
+  // Outpatient mode: everything except Inpatient (Emergency/Other grouped with outpatient)
+  return vt !== 'inpatient';
+}
+
+function getPatientsWithActiveInpatientEncounters() {
+  const encounters = getEncounters().filter(e =>
+    (e.visitType || '').toLowerCase() === 'inpatient' && e.status !== 'Signed' && e.status !== 'Cancelled'
+  );
+  const patientIds = [...new Set(encounters.map(e => e.patientId))];
+  return patientIds.map(id => getPatient(id)).filter(Boolean);
+}
+
+/* ============================================================
    Patients
    ============================================================ */
 function getPatients() { return loadAll(KEYS.patients); }
@@ -88,6 +125,18 @@ function savePatient(data) {
       sex:       '',
       phone:     '',
       insurance: '',
+      email:     '',
+      addressStreet: '',
+      addressCity:   '',
+      addressState:  '',
+      addressZip:    '',
+      emergencyContactName:         '',
+      emergencyContactPhone:        '',
+      emergencyContactRelationship: '',
+      pharmacyName:  '',
+      pharmacyPhone: '',
+      pharmacyFax:   '',
+      panelProviders: [],
       createdAt: new Date().toISOString(),
       ...data,
     };
@@ -123,6 +172,7 @@ function deletePatient(id) {
   saveAll(KEYS.documents,      loadAll(KEYS.documents).filter(d => d.patientId !== id));
   saveAll(KEYS.medRec,         loadAll(KEYS.medRec).filter(r => r.patientId !== id));
   saveAll(KEYS.auditLog,       loadAll(KEYS.auditLog).filter(e => e.patientId !== id));
+  saveAll(KEYS.appointments,   loadAll(KEYS.appointments).filter(a => a.patientId !== id));
   saveAll(KEYS.patients,       getPatients().filter(p => p.id !== id));
 }
 
@@ -189,6 +239,8 @@ function saveEncounter(data) {
       visitSubtype:'',
       dateTime:    new Date().toISOString(),
       status:      'Open',
+      diagnoses:   [],
+      cptCodes:    [],
       ...data,
     };
     encounters.push(newEncounter);
@@ -634,6 +686,8 @@ function saveLabResult(data) {
       resultedBy: '',
       tests:      [],
       notes:      '',
+      reviewedBy: null,
+      reviewedAt: null,
       ...data,
     });
   }
@@ -860,9 +914,353 @@ function deleteNoteTemplate(id) {
 }
 
 /* ============================================================
+   Appointments
+   ============================================================ */
+function getAppointments() { return loadAll(KEYS.appointments); }
+
+function getAppointmentsByDate(dateStr) {
+  return getAppointments().filter(a => a.dateTime && a.dateTime.startsWith(dateStr))
+    .sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+}
+
+function getAppointmentsByPatient(patientId) {
+  return getAppointments().filter(a => a.patientId === patientId)
+    .sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+}
+
+function getAppointmentsByProvider(providerId) {
+  return getAppointments().filter(a => a.providerId === providerId)
+    .sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+}
+
+function getAppointmentsByWeek(mondayStr) {
+  const monday = new Date(mondayStr + 'T00:00:00');
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 7);
+  return getAppointments().filter(a => {
+    const d = new Date(a.dateTime);
+    return d >= monday && d < sunday;
+  }).sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+}
+
+function saveAppointment(data) {
+  const all = getAppointments();
+  const idx = all.findIndex(a => a.id === data.id);
+  if (idx >= 0) {
+    all[idx] = { ...all[idx], ...data };
+    saveAll(KEYS.appointments, all);
+    return all[idx];
+  }
+  const newAppt = {
+    id:        generateId(),
+    patientId: '',
+    providerId:'',
+    dateTime:  '',
+    duration:  30,
+    visitType: 'Follow-Up',
+    reason:    '',
+    status:    'Scheduled',
+    createdAt: new Date().toISOString(),
+    ...data,
+  };
+  all.push(newAppt);
+  saveAll(KEYS.appointments, all);
+  return newAppt;
+}
+
+function deleteAppointment(id) {
+  saveAll(KEYS.appointments, getAppointments().filter(a => a.id !== id));
+}
+
+/* ============================================================
+   Panel / Provider Assignment
+   ============================================================ */
+function assignPanel(patientId, providerIds) {
+  const pat = getPatient(patientId);
+  if (pat) savePatient({ id: patientId, panelProviders: providerIds });
+}
+
+function getCurrentProvider() {
+  return localStorage.getItem(KEYS.currentProvider) || '';
+}
+
+function setCurrentProvider(providerId) {
+  safeSave(KEYS.currentProvider, providerId || '');
+}
+
+/* ============================================================
+   Authentication — Users & Sessions
+   ============================================================ */
+function getUsers() { return loadAll(KEYS.users); }
+
+function getUser(id) { return getUsers().find(u => u.id === id) || null; }
+
+function getUserByEmail(email) {
+  return getUsers().find(u => u.email.toLowerCase() === email.toLowerCase()) || null;
+}
+
+function saveUser(data) {
+  const users = getUsers();
+  const existing = users.findIndex(u => u.id === data.id);
+  if (existing >= 0) {
+    users[existing] = { ...users[existing], ...data };
+    saveAll(KEYS.users, users);
+    return users[existing];
+  }
+  const newUser = {
+    id: generateId(),
+    firstName: '',
+    lastName: '',
+    dob: '',
+    npiNumber: '',
+    email: '',
+    phone: '',
+    degree: 'MD',
+    passwordHash: '',
+    role: 'user',
+    status: 'pending',
+    mustChangePassword: false,
+    approvedBy: '',
+    approvedAt: '',
+    deactivatedAt: '',
+    lastPasswordChange: '',
+    createdAt: new Date().toISOString(),
+    ...data,
+  };
+  users.push(newUser);
+  saveAll(KEYS.users, users);
+  return newUser;
+}
+
+async function hashPassword(pw) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(pw);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function login(email, password) {
+  const user = getUserByEmail(email);
+  if (!user) {
+    logSystemAudit('LOGIN_FAILED', '', '', 'Invalid email: ' + email, email);
+    return { ok: false, error: 'Invalid email or password.' };
+  }
+  const hash = await hashPassword(password);
+  if (hash !== user.passwordHash) {
+    logSystemAudit('LOGIN_FAILED', user.id, '', 'Wrong password', user.email);
+    return { ok: false, error: 'Invalid email or password.' };
+  }
+  // Backwards compat: treat missing status as active
+  const status = user.status || 'active';
+  if (status === 'denied') {
+    logSystemAudit('LOGIN_FAILED', user.id, '', 'Account denied', user.email);
+    return { ok: false, error: 'Your account has been denied. Please contact an administrator.' };
+  }
+  if (status === 'deactivated') {
+    logSystemAudit('LOGIN_FAILED', user.id, '', 'Account deactivated', user.email);
+    return { ok: false, error: 'Your account has been deactivated. Please contact an administrator.' };
+  }
+  safeSave(KEYS.session, JSON.stringify({ userId: user.id, loginAt: new Date().toISOString(), lastActivity: new Date().toISOString() }));
+  logSystemAudit('LOGIN', user.id, '', 'Successful login', user.email);
+  return { ok: true, user };
+}
+
+function logout() {
+  const user = getSessionUser();
+  if (user) logSystemAudit('LOGOUT', user.id, '', 'User logged out', user.email);
+  localStorage.removeItem(KEYS.session);
+}
+
+function getSession() {
+  try {
+    const raw = localStorage.getItem(KEYS.session);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function isAuthenticated() {
+  const session = getSession();
+  if (!session || !session.userId) return false;
+  return !!getUser(session.userId);
+}
+
+function getSessionUser() {
+  const session = getSession();
+  return session ? getUser(session.userId) : null;
+}
+
+/* ============================================================
+   System Audit Log (HIPAA)
+   ============================================================ */
+function logSystemAudit(action, userId, targetUserId, details, email) {
+  const all = loadAll(KEYS.systemAuditLog);
+  all.push({
+    id:           generateId(),
+    timestamp:    new Date().toISOString(),
+    action,
+    userId:       userId || '',
+    targetUserId: targetUserId || '',
+    details:      details || '',
+    email:        email || '',
+  });
+  if (all.length > 2000) all.splice(0, all.length - 2000);
+  saveAll(KEYS.systemAuditLog, all);
+}
+
+function getSystemAuditLog() {
+  return loadAll(KEYS.systemAuditLog)
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
+/* ============================================================
+   Session Management (HIPAA)
+   ============================================================ */
+function updateSessionActivity() {
+  const session = getSession();
+  if (!session) return;
+  session.lastActivity = new Date().toISOString();
+  safeSave(KEYS.session, JSON.stringify(session));
+}
+
+function isSessionExpired(timeoutMinutes = 15) {
+  const session = getSession();
+  if (!session || !session.lastActivity) return false;
+  const elapsed = (Date.now() - new Date(session.lastActivity).getTime()) / 60000;
+  return elapsed >= timeoutMinutes;
+}
+
+/* ============================================================
+   Password & User Management (HIPAA)
+   ============================================================ */
+function validatePasswordStrength(password) {
+  const errors = [];
+  if (password.length < 8) errors.push('At least 8 characters');
+  if (!/[A-Z]/.test(password)) errors.push('At least one uppercase letter');
+  if (!/[a-z]/.test(password)) errors.push('At least one lowercase letter');
+  if (!/[0-9]/.test(password)) errors.push('At least one number');
+  return { valid: errors.length === 0, errors };
+}
+
+async function changePassword(userId, newPassword) {
+  const user = getUser(userId);
+  if (!user) return false;
+  const passwordHash = await hashPassword(newPassword);
+  saveUser({ id: userId, passwordHash, mustChangePassword: false, lastPasswordChange: new Date().toISOString() });
+  logSystemAudit('PASSWORD_CHANGED', userId, '', 'Password changed', user.email);
+  return true;
+}
+
+function approveUser(targetUserId, adminUserId) {
+  const target = getUser(targetUserId);
+  const admin = getUser(adminUserId);
+  if (!target || !admin) return false;
+  saveUser({ id: targetUserId, status: 'active', approvedBy: adminUserId, approvedAt: new Date().toISOString() });
+  logSystemAudit('USER_APPROVED', adminUserId, targetUserId, admin.email + ' approved ' + target.email, admin.email);
+  return true;
+}
+
+function denyUser(targetUserId, adminUserId) {
+  const target = getUser(targetUserId);
+  const admin = getUser(adminUserId);
+  if (!target || !admin) return false;
+  saveUser({ id: targetUserId, status: 'denied' });
+  logSystemAudit('USER_DENIED', adminUserId, targetUserId, admin.email + ' denied ' + target.email, admin.email);
+  return true;
+}
+
+function deactivateUser(targetUserId, adminUserId) {
+  const target = getUser(targetUserId);
+  const admin = getUser(adminUserId);
+  if (!target || !admin) return false;
+  saveUser({ id: targetUserId, status: 'deactivated', deactivatedAt: new Date().toISOString() });
+  logSystemAudit('USER_DEACTIVATED', adminUserId, targetUserId, admin.email + ' deactivated ' + target.email, admin.email);
+  return true;
+}
+
+function reactivateUser(targetUserId, adminUserId) {
+  const target = getUser(targetUserId);
+  const admin = getUser(adminUserId);
+  if (!target || !admin) return false;
+  saveUser({ id: targetUserId, status: 'active', deactivatedAt: '' });
+  logSystemAudit('USER_REACTIVATED', adminUserId, targetUserId, admin.email + ' reactivated ' + target.email, admin.email);
+  return true;
+}
+
+function promoteToAdmin(targetUserId, adminUserId) {
+  const target = getUser(targetUserId);
+  const admin = getUser(adminUserId);
+  if (!target || !admin) return false;
+  saveUser({ id: targetUserId, role: 'admin' });
+  logSystemAudit('USER_PROMOTED', adminUserId, targetUserId, admin.email + ' promoted ' + target.email + ' to admin', admin.email);
+  return true;
+}
+
+function demoteFromAdmin(targetUserId, adminUserId) {
+  const target = getUser(targetUserId);
+  const admin = getUser(adminUserId);
+  if (!target || !admin) return false;
+  saveUser({ id: targetUserId, role: 'user' });
+  logSystemAudit('USER_DEMOTED', adminUserId, targetUserId, admin.email + ' demoted ' + target.email + ' from admin', admin.email);
+  return true;
+}
+
+function getPendingUsers() {
+  return getUsers().filter(u => u.status === 'pending');
+}
+
+function isAdmin(userId) {
+  if (!userId) {
+    const user = getSessionUser();
+    return user ? user.role === 'admin' : false;
+  }
+  const user = getUser(userId);
+  return user ? user.role === 'admin' : false;
+}
+
+/* ============================================================
+   Lab Results — global query
+   ============================================================ */
+function getAllLabResults() {
+  return loadAll(KEYS.labResults).sort((a, b) => new Date(b.resultDate) - new Date(a.resultDate));
+}
+
+/* ============================================================
    Seed data — populates on first load
    ============================================================ */
-function seedIfEmpty() {
+async function seedAdminIfNeeded() {
+  const existing = getUserByEmail('admin@clinic.com');
+  if (existing) return;
+  const passwordHash = await hashPassword('Admin123');
+  const adminId = generateId();
+  const adminUser = saveUser({
+    id: adminId,
+    firstName: 'System',
+    lastName: 'Admin',
+    dob: '',
+    npiNumber: '',
+    email: 'admin@clinic.com',
+    phone: '',
+    degree: 'MD',
+    passwordHash,
+    role: 'admin',
+    status: 'active',
+    mustChangePassword: true,
+  });
+  saveProvider({
+    id: adminUser.id,
+    firstName: 'System',
+    lastName: 'Admin',
+    degree: 'MD',
+    role: 'Admin',
+    npiNumber: '',
+    email: 'admin@clinic.com',
+    phone: '',
+  });
+}
+
+async function seedIfEmpty() {
+  await seedAdminIfNeeded();
   if (getPatients().length > 0) return; // already seeded
 
   // Providers
@@ -881,6 +1279,11 @@ function seedIfEmpty() {
     firstName: 'Alice', lastName: 'Johnson',
     dob: '1968-04-15', sex: 'Female',
     phone: '(555) 210-1001', insurance: 'Blue Cross PPO',
+    email: 'alice.johnson@email.com',
+    addressStreet: '742 Maple Avenue', addressCity: 'Springfield', addressState: 'IL', addressZip: '62704',
+    emergencyContactName: 'Tom Johnson', emergencyContactPhone: '(555) 210-2001', emergencyContactRelationship: 'Spouse',
+    pharmacyName: 'CVS Pharmacy #4521', pharmacyPhone: '(555) 300-1001', pharmacyFax: '(555) 300-1002',
+    panelProviders: [],
     createdAt: new Date('2024-01-10').toISOString(),
   });
   const pat2 = savePatient({
@@ -888,6 +1291,11 @@ function seedIfEmpty() {
     firstName: 'Robert', lastName: 'Kim',
     dob: '1955-11-30', sex: 'Male',
     phone: '(555) 210-1002', insurance: 'Medicare',
+    email: 'robert.kim@email.com',
+    addressStreet: '1895 Oak Drive', addressCity: 'Springfield', addressState: 'IL', addressZip: '62701',
+    emergencyContactName: 'Lisa Kim', emergencyContactPhone: '(555) 210-2002', emergencyContactRelationship: 'Daughter',
+    pharmacyName: 'Walgreens #7830', pharmacyPhone: '(555) 300-2001', pharmacyFax: '(555) 300-2002',
+    panelProviders: [],
     createdAt: new Date('2024-02-05').toISOString(),
   });
   const pat3 = savePatient({
@@ -1012,6 +1420,28 @@ function seedIfEmpty() {
     plan:           '',
     signed:         false,
     lastModified:   new Date('2025-12-10T10:15:00').toISOString(),
+  });
+
+  // Encounter 4 — pat2 — inpatient admission (open)
+  const enc4 = saveEncounter({
+    id: generateId(),
+    patientId:   pat2.id,
+    providerId:  prov1.id,
+    visitType:   'Inpatient',
+    visitSubtype:'General Ward',
+    dateTime:    new Date('2025-12-08T07:00:00').toISOString(),
+    status:      'Open',
+  });
+
+  saveNote({
+    id: generateId(),
+    encounterId:    enc4.id,
+    chiefComplaint: 'Acute CHF exacerbation — increasing dyspnea and lower extremity edema.',
+    hpi:            'Robert Kim is a 70-year-old male with known CHF (EF 42%) presenting with worsening dyspnea on exertion and bilateral LE edema over the past 3 days. Weight up 6 lbs from baseline. Reports 3-pillow orthopnea and PND. Dietary indiscretion (high-sodium meals) identified.',
+    assessment:     '1. Acute on chronic systolic heart failure exacerbation (I50.23).\n2. Volume overload — likely dietary non-compliance.',
+    plan:           '1. IV Furosemide 40 mg BID, strict I&Os, daily weights.\n2. Sodium restriction 2g.\n3. Repeat BMP and BNP in AM.\n4. Cardiology consult for optimization.\n5. Telemetry monitoring.',
+    signed:         false,
+    lastModified:   new Date('2025-12-08T08:30:00').toISOString(),
   });
 
   /* ---- Patient-level clinical records ---- */
@@ -1184,4 +1614,26 @@ function seedIfEmpty() {
     assessment: '1. [Cardiac condition] — [stable/improved/worsening].\n2. Last echo: EF [X]% on [date].',
     plan: '1. Continue/adjust [medications].\n2. Repeat labs: BMP, BNP.\n3. Follow-up echo in [X] months.\n4. Restrict sodium <2g/day, daily weights.\n5. Return for weight gain >3 lbs in 1 day or >5 lbs in 1 week.',
   });
+
+  /* ---- Panel Provider Assignments ---- */
+  assignPanel(pat1.id, [prov1.id]);
+  assignPanel(pat2.id, [prov1.id]);
+  assignPanel(pat3.id, [prov2.id]);
+
+  /* ---- Sample Appointments ---- */
+  const today = new Date();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - today.getDay() + 1); // This week's Monday
+
+  function apptDate(dayOffset, hour, min) {
+    const d = new Date(monday);
+    d.setDate(d.getDate() + dayOffset);
+    d.setHours(hour, min, 0, 0);
+    return d.toISOString();
+  }
+
+  saveAppointment({ patientId: pat1.id, providerId: prov1.id, dateTime: apptDate(1, 9, 0),  duration: 30, visitType: 'Follow-Up',       reason: 'Migraine follow-up',     status: 'Scheduled' });
+  saveAppointment({ patientId: pat2.id, providerId: prov1.id, dateTime: apptDate(3, 14, 0), duration: 45, visitType: 'Annual Physical',  reason: 'Annual wellness exam',   status: 'Scheduled' });
+  saveAppointment({ patientId: pat3.id, providerId: prov2.id, dateTime: apptDate(7, 10, 30), duration: 30, visitType: 'Follow-Up',       reason: 'Sore throat follow-up',  status: 'Scheduled' });
+  saveAppointment({ patientId: pat1.id, providerId: prov1.id, dateTime: apptDate(9, 11, 0), duration: 60, visitType: 'New Patient',      reason: 'Comprehensive evaluation', status: 'Scheduled' });
 }

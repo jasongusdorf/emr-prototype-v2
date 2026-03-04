@@ -46,6 +46,20 @@
   --order-completed-color:  #276749;
   --order-cancelled-color:  #718096;
 
+  /* webOMR chart-view tokens */
+  --omr-bg-content:       #FFFDE8;
+  --omr-header-color:     #800040;
+  --omr-table-header-bg:  #c0c0c0;
+  --omr-table-alt-row:    #f5f5e8;
+  --omr-table-link:       #0000cc;
+  --omr-subtab-profile:       #d8d0e8;
+  --omr-subtab-problems:      #c8d8c0;
+  --omr-subtab-results:       #d0d098;
+  --omr-subtab-medications:   #d0d0d0;
+  --omr-subtab-orders:        #b8c8d8;
+  --omr-subtab-immunizations: #c0e0d0;
+  --omr-subtab-all:           #e0e0e0;
+
   --sidebar-width: 220px;
   --topbar-height: 52px;
   --radius:        6px;
@@ -104,6 +118,47 @@ a:hover { text-decoration: underline; }
   color: var(--text-sidebar);
   letter-spacing: 0.04em;
 }
+
+/* ---------- Encounter Mode Toggle ---------- */
+.encounter-mode-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgba(160,174,192,0.7);
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.mode-btn:hover {
+  color: #cbd5e0;
+  background: rgba(255,255,255,0.04);
+}
+
+.mode-btn.active {
+  color: #fff;
+  background: var(--bg-sidebar-active);
+  border-color: rgba(255,255,255,0.15);
+}
+
+.mode-btn svg { flex-shrink: 0; opacity: 0.8; }
+.mode-btn.active svg { opacity: 1; }
+
+.nav-item.mode-hidden { display: none; }
 
 .sidebar-nav {
   flex: 1;
@@ -945,50 +1000,69 @@ select.form-control { cursor: pointer; }
 /* ---------- Chart tab bar ---------- */
 .chart-tab-bar {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   background: var(--bg-surface);
-  border-bottom: 2px solid var(--border);
-  padding: 0 6px;
+  border-bottom: 1px solid #888;
+  padding: 0 4px;
   position: sticky;
   top: 0;
   z-index: 35;
-  gap: 0;
+  gap: 2px;
 }
 
 .chart-tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 11px 16px;
-  font-size: 13px;
+  gap: 5px;
+  padding: 5px 14px;
+  font-size: 12px;
   font-weight: 500;
-  color: var(--text-muted);
-  border: none;
-  background: none;
+  color: var(--text-primary);
+  border: 1px solid #999;
+  border-bottom: none;
+  background: var(--bg-base);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
+  border-radius: 3px 3px 0 0;
   text-decoration: none;
-  transition: color var(--transition), border-color var(--transition);
+  transition: background var(--transition);
   white-space: nowrap;
+  margin-bottom: -1px;
 }
-.chart-tab:hover { color: var(--text-primary); text-decoration: none; }
+.chart-tab:hover { background: var(--bg-surface); text-decoration: none; }
 .chart-tab.active {
-  color: var(--accent-blue);
-  border-bottom-color: var(--accent-blue);
-  font-weight: 600;
+  background: var(--bg-surface);
+  font-weight: 700;
+  border-bottom: 1px solid var(--bg-surface);
+  z-index: 1;
 }
+
+/* Color-coded chart tabs via data-omr-color */
+.chart-tab[data-omr-color="overview"]  { background: #e8e0f0; }
+.chart-tab[data-omr-color="outpatient"]{ background: #d0e0d0; }
+.chart-tab[data-omr-color="inpatient"] { background: #d8d0c0; }
+.chart-tab[data-omr-color="emergency"] { background: #e0c8c8; }
+.chart-tab[data-omr-color="overview"].active  { background: #f0ecf6; border-bottom-color: #f0ecf6; }
+.chart-tab[data-omr-color="outpatient"].active{ background: #e8f0e8; border-bottom-color: #e8f0e8; }
+.chart-tab[data-omr-color="inpatient"].active { background: #f0ece0; border-bottom-color: #f0ece0; }
+.chart-tab[data-omr-color="emergency"].active { background: #f0e0e0; border-bottom-color: #f0e0e0; }
+
+body.dark-mode .chart-tab[data-omr-color="overview"],
+body.dark-mode .chart-tab[data-omr-color="outpatient"],
+body.dark-mode .chart-tab[data-omr-color="inpatient"],
+body.dark-mode .chart-tab[data-omr-color="emergency"] { background: var(--bg-base); }
+body.dark-mode .chart-tab[data-omr-color].active { background: var(--bg-surface); border-bottom-color: var(--bg-surface); }
+
 .chart-tab .tab-count {
   font-size: 10px;
-  background: var(--bg-base);
-  color: var(--text-muted);
+  background: rgba(0,0,0,0.08);
+  color: var(--text-secondary);
   border-radius: 10px;
   padding: 1px 6px;
   font-weight: 600;
 }
 .chart-tab.active .tab-count {
-  background: var(--accent-blue-light);
-  color: var(--accent-blue);
+  background: rgba(0,0,0,0.12);
+  color: var(--text-primary);
 }
 
 .chart-tab-spacer { flex: 1; }
@@ -1092,6 +1166,84 @@ select.form-control { cursor: pointer; }
 .search-result-item:hover { background: var(--accent-blue-light); }
 .search-result-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
 .search-result-sub  { font-size: 11.5px; color: var(--text-muted); }
+
+/* ---------- webOMR sub-tab bar ---------- */
+.chart-subtab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid #888;
+  position: sticky;
+  top: 34px;
+  z-index: 34;
+}
+
+.chart-subtab {
+  padding: 3px 12px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  border: 1px solid #999;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background var(--transition);
+  white-space: nowrap;
+}
+.chart-subtab:hover { filter: brightness(0.95); }
+.chart-subtab.active {
+  font-weight: 700;
+  border-color: #666;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
+}
+
+/* Sub-tab colors */
+.chart-subtab[data-omr-color="all"]           { background: var(--omr-subtab-all); }
+.chart-subtab[data-omr-color="profile"]       { background: var(--omr-subtab-profile); }
+.chart-subtab[data-omr-color="problems"]      { background: var(--omr-subtab-problems); }
+.chart-subtab[data-omr-color="medications"]   { background: var(--omr-subtab-medications); }
+.chart-subtab[data-omr-color="results"]       { background: var(--omr-subtab-results); }
+.chart-subtab[data-omr-color="orders"]        { background: var(--omr-subtab-orders); }
+.chart-subtab[data-omr-color="immunizations"] { background: var(--omr-subtab-immunizations); }
+
+/* ---------- Chart view scoped overrides (webOMR) ---------- */
+#app.chart-view { background: var(--omr-bg-content); }
+
+.chart-view .card {
+  border-radius: 2px;
+  box-shadow: none;
+  border: 1px solid #aaa;
+}
+.chart-view .card-header {
+  padding: 8px 12px;
+}
+.chart-view .card-title {
+  color: var(--omr-header-color);
+  font-size: 13px;
+}
+.chart-view .table th {
+  background: var(--omr-table-header-bg);
+  padding: 4px 8px;
+  border: 1px solid #aaa;
+  font-size: 12px;
+}
+.chart-view .table td {
+  padding: 3px 8px;
+  border: 1px solid #ddd;
+  font-size: 12.5px;
+}
+.chart-view .table tbody tr:nth-child(even) {
+  background: var(--omr-table-alt-row);
+}
+.chart-view .table-link {
+  color: var(--omr-table-link);
+  text-decoration: underline;
+}
+.chart-view [data-subtab-category] {
+  margin-bottom: 16px;
+}
 
 /* ---------- Encounter tab list (Outpatient/Inpatient views) ---------- */
 .enc-tab-content { padding: 20px; }
@@ -1419,6 +1571,18 @@ body.dark-mode {
   --danger-light: #2d0000;
   --success-light: #0d2016;
   --warning-light: #2d1a00;
+  --omr-bg-content:       var(--bg-base);
+  --omr-header-color:     #c490a8;
+  --omr-table-header-bg:  #2a2d37;
+  --omr-table-alt-row:    #1e2028;
+  --omr-table-link:       #6699dd;
+  --omr-subtab-profile:       #2e2840;
+  --omr-subtab-problems:      #243028;
+  --omr-subtab-results:       #2c2c1e;
+  --omr-subtab-medications:   #282828;
+  --omr-subtab-orders:        #1e2830;
+  --omr-subtab-immunizations: #1e3028;
+  --omr-subtab-all:           #252525;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -1443,6 +1607,18 @@ body.dark-mode {
     --danger-light: #2d0000;
     --success-light: #0d2016;
     --warning-light: #2d1a00;
+    --omr-bg-content:       var(--bg-base);
+    --omr-header-color:     #c490a8;
+    --omr-table-header-bg:  #2a2d37;
+    --omr-table-alt-row:    #1e2028;
+    --omr-table-link:       #6699dd;
+    --omr-subtab-profile:       #2e2840;
+    --omr-subtab-problems:      #243028;
+    --omr-subtab-results:       #2c2c1e;
+    --omr-subtab-medications:   #282828;
+    --omr-subtab-orders:        #1e2830;
+    --omr-subtab-immunizations: #1e3028;
+    --omr-subtab-all:           #252525;
   }
 }
 
@@ -1809,9 +1985,681 @@ body.dark-mode .badge-referral-completed { background: #052e16; color: #6ee7b7; 
   #sidebar   { display: none !important; }
   #topbar    { display: none !important; }
   .chart-tab-bar { display: none !important; }
+  .chart-subtab-bar { display: none !important; }
   .chart-search-btn { display: none !important; }
 
   body { background: white; color: black; }
   .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
   #app { padding: 0; }
+}
+
+/* ============================================================
+   Dashboard Summary Bar
+   ============================================================ */
+.dashboard-summary-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.summary-stat {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+.summary-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent-blue);
+  line-height: 1.2;
+}
+.summary-stat-value.stat-danger { color: var(--danger); }
+.summary-stat-value.stat-warning { color: var(--warning); }
+.summary-stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+/* ============================================================
+   Alert Badges (patient table rows)
+   ============================================================ */
+.alert-badges { display: flex; gap: 4px; flex-wrap: wrap; }
+.alert-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.alert-badge-red    { background: var(--priority-stat-bg); color: var(--danger); }
+.alert-badge-amber  { background: var(--priority-urgent-bg); color: var(--warning); }
+.alert-badge-blue   { background: var(--status-open-bg); color: var(--accent-blue); }
+.alert-badge-gray   { background: var(--priority-routine-bg); color: var(--text-muted); }
+
+/* ============================================================
+   Schedule / Calendar
+   ============================================================ */
+.schedule-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.schedule-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.schedule-nav .date-range {
+  font-weight: 600;
+  font-size: 15px;
+  min-width: 200px;
+  text-align: center;
+}
+.schedule-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.schedule-grid {
+  display: grid;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-surface);
+  margin: 0 20px 20px;
+}
+.schedule-grid-week { grid-template-columns: 70px repeat(5, 1fr); }
+.schedule-grid-day  { grid-template-columns: 70px 1fr; }
+
+.schedule-day-header {
+  padding: 8px 6px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-base);
+  border-bottom: 2px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.schedule-day-header.today { color: var(--accent-blue); background: var(--accent-blue-light); }
+.schedule-corner {
+  background: var(--bg-base);
+  border-bottom: 2px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+.schedule-time-label {
+  padding: 4px 8px 4px 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  height: 48px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+.schedule-cell {
+  position: relative;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  min-height: 48px;
+  cursor: pointer;
+}
+.schedule-cell:hover { background: var(--accent-blue-light); }
+.schedule-cell:last-child { border-right: none; }
+
+.appt-block {
+  position: absolute;
+  left: 2px; right: 2px;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  cursor: pointer;
+  z-index: 1;
+  line-height: 1.3;
+  border-left: 3px solid;
+}
+.appt-block .appt-time   { font-size: 10px; font-weight: 400; opacity: 0.85; }
+.appt-block .appt-patient { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.appt-scheduled   { background: var(--status-open-bg); color: var(--accent-blue); border-left-color: var(--accent-blue); }
+.appt-checked-in  { background: var(--priority-urgent-bg); color: var(--warning); border-left-color: var(--warning); }
+.appt-in-progress { background: #f3e8ff; color: #7c3aed; border-left-color: #7c3aed; }
+.appt-completed   { background: var(--status-signed-bg); color: var(--success); border-left-color: var(--success); }
+.appt-cancelled   { background: var(--priority-routine-bg); color: var(--text-muted); border-left-color: var(--text-muted); text-decoration: line-through; }
+.appt-no-show     { background: var(--priority-stat-bg); color: var(--danger); border-left-color: var(--danger); }
+
+body.dark-mode .appt-in-progress { background: #2e1065; color: #c4b5fd; border-left-color: #8b5cf6; }
+
+/* ============================================================
+   Inbox
+   ============================================================ */
+.inbox-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin: 0 20px;
+}
+.inbox-tab {
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.inbox-tab:hover { color: var(--text-primary); }
+.inbox-tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+
+.inbox-tab .tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--border);
+  color: var(--text-muted);
+}
+.inbox-tab.active .tab-badge { background: var(--accent-blue); color: #fff; }
+
+.inbox-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.inbox-item:last-child { border-bottom: none; }
+.inbox-item:hover { background: var(--accent-blue-light); }
+.inbox-item-body { flex: 1; min-width: 0; }
+.inbox-item-title { font-weight: 600; font-size: 13.5px; color: var(--text-primary); }
+.inbox-item-meta  { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+/* Sidebar inbox badge */
+.inbox-nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--danger);
+  color: #fff;
+  margin-left: auto;
+}
+.inbox-nav-badge:empty { display: none; }
+
+/* ============================================================
+   Billing / ICD-10 / CPT
+   ============================================================ */
+.billing-section {
+  padding: 16px;
+}
+.billing-section h4 {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.dx-list { list-style: none; margin-bottom: 16px; }
+.dx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+.dx-item:last-child { border-bottom: none; }
+.dx-item.primary { font-weight: 600; }
+.dx-code {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--accent-blue-light);
+  color: var(--accent-blue);
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.cpt-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+.cpt-item:last-child { border-bottom: none; }
+
+.icd-search-results {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-top: 6px;
+}
+.icd-search-results .icd-result-item {
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+.icd-search-results .icd-result-item:hover { background: var(--accent-blue-light); }
+.icd-search-results .icd-result-item:last-child { border-bottom: none; }
+
+/* ============================================================
+   Provider Selector (Sidebar)
+   ============================================================ */
+.provider-selector {
+  padding: 8px 14px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  margin-top: auto;
+}
+.provider-selector label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-sidebar);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.provider-selector select {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.08);
+  color: var(--text-sidebar);
+  cursor: pointer;
+}
+.provider-selector select:focus { outline: none; border-color: var(--accent-blue); }
+
+/* ============================================================
+   Upcoming Appointments Card
+   ============================================================ */
+.upcoming-appt-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.upcoming-appt-item:last-child { border-bottom: none; }
+.upcoming-appt-item:hover { background: var(--accent-blue-light); cursor: pointer; }
+.upcoming-appt-time { font-weight: 600; min-width: 130px; color: var(--text-primary); }
+.upcoming-appt-patient { flex: 1; min-width: 0; font-weight: 500; }
+.upcoming-appt-type { color: var(--text-muted); font-size: 12px; }
+.upcoming-appt-provider { color: var(--text-secondary); font-size: 12px; min-width: 100px; text-align: right; }
+
+/* ============================================================
+   My Patients Toggle
+   ============================================================ */
+.my-patients-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-left: 16px;
+}
+.my-patients-toggle input { cursor: pointer; }
+
+/* ============================================================
+   Login / Registration Screen
+   ============================================================ */
+.login-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-base);
+  z-index: 9999;
+  padding: 20px;
+}
+.login-screen.hidden { display: none; }
+
+.login-card {
+  background: var(--bg-surface);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 440px;
+  padding: 36px 32px 28px;
+}
+
+.login-brand {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.login-brand h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent-blue);
+  letter-spacing: 0.02em;
+}
+.login-brand p {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.auth-form h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 18px;
+  color: var(--text-primary);
+}
+.auth-form .form-group {
+  margin-bottom: 14px;
+  flex: 1;
+}
+.auth-form .form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.auth-form .form-group input,
+.auth-form .form-group select {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  transition: border-color var(--transition);
+}
+.auth-form .form-group input:focus,
+.auth-form .form-group select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(43,108,176,0.1);
+}
+
+.auth-form .form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-block {
+  width: 100%;
+  display: block;
+  text-align: center;
+}
+
+.auth-toggle {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.auth-toggle a {
+  font-weight: 500;
+}
+
+.auth-form.hidden { display: none; }
+
+.login-footer {
+  text-align: center;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.logged-in-user {
+  font-size: 12.5px;
+  color: #fff;
+  font-weight: 500;
+  padding: 2px 0;
+}
+
+.btn-sm {
+  font-size: 11.5px;
+  padding: 4px 10px;
+}
+
+#shell.hidden { display: none; }
+
+/* ============================================================
+   Admin Panel Styles (HIPAA Security Upgrade)
+   ============================================================ */
+
+/* --- Admin Tabs --- */
+.admin-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.admin-tab {
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.admin-tab:hover {
+  color: var(--text-primary);
+}
+
+.admin-tab.active {
+  color: var(--accent-blue);
+  border-bottom-color: var(--accent-blue);
+}
+
+/* --- Admin Cards (approval queue) --- */
+.admin-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.admin-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.admin-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.admin-card-body {
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.admin-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* --- Admin Nav Badge --- */
+.admin-nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #c53030;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+/* --- Pending Approval Screen --- */
+.pending-approval-icon {
+  text-align: center;
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.pending-message {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+/* --- Password Change Screen --- */
+.password-change-message {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  margin-bottom: 16px;
+}
+
+.password-requirements {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  background: var(--bg-base);
+  border-radius: 6px;
+  line-height: 1.5;
+}
+
+/* --- User Status Badge --- */
+.user-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.user-status-badge.status-active {
+  background: var(--success-light);
+  color: var(--success);
+}
+
+.user-status-badge.status-pending {
+  background: var(--warning-light);
+  color: var(--warning);
+}
+
+.user-status-badge.status-denied {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.user-status-badge.status-deactivated {
+  background: #edf2f7;
+  color: #718096;
+}
+
+/* --- Audit Action Badge --- */
+.audit-action-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.audit-action-badge.audit-login {
+  background: var(--accent-blue-light);
+  color: var(--accent-blue);
+}
+
+.audit-action-badge.audit-failed {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.audit-action-badge.audit-logout {
+  background: #edf2f7;
+  color: #718096;
+}
+
+.audit-action-badge.audit-approved {
+  background: var(--success-light);
+  color: var(--success);
+}
+
+.audit-action-badge.audit-denied {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+/* --- Dark mode overrides for admin --- */
+.dark-mode .admin-card {
+  background: var(--bg-surface);
+  border-color: var(--border);
+}
+
+.dark-mode .password-requirements {
+  background: var(--bg-surface);
+}
+
+.dark-mode .user-status-badge.status-deactivated {
+  background: #2d3748;
+  color: #a0aec0;
+}
+
+.dark-mode .audit-action-badge.audit-logout {
+  background: #2d3748;
+  color: #a0aec0;
 }

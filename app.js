@@ -96,12 +96,47 @@ function confirmAction({ title, message, confirmLabel = 'Confirm', danger = fals
   confirmBtn.focus();
 }
 
+/* ---------- Encounter Mode ---------- */
+function applyEncounterMode() {
+  const mode = getEncounterMode();
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  // Hide/show Schedule nav
+  const scheduleNav = document.querySelector('.nav-item[data-nav="schedule"]');
+  if (scheduleNav) {
+    scheduleNav.classList.toggle('mode-hidden', mode === 'inpatient');
+  }
+  if (typeof updateInboxBadge === 'function') updateInboxBadge();
+}
+
+function initEncounterModeToggle() {
+  const toggle = document.querySelector('.encounter-mode-toggle');
+  if (!toggle) return;
+  toggle.addEventListener('click', e => {
+    const btn = e.target.closest('.mode-btn');
+    if (!btn) return;
+    const mode = btn.dataset.mode;
+    setEncounterMode(mode);
+    applyEncounterMode();
+    // If on schedule in inpatient mode, redirect
+    if (mode === 'inpatient' && location.hash === '#schedule') {
+      navigate('#dashboard');
+    } else {
+      route();
+    }
+  });
+  applyEncounterMode();
+}
+
 /* ---------- Hash router ---------- */
 function route() {
   const hash = location.hash || '#dashboard';
   const parts = hash.slice(1).split('/');
   const view  = parts[0];
   const param = parts[1];
+
+  document.getElementById('app').classList.remove('chart-view');
 
   switch (view) {
     case 'dashboard':
@@ -119,8 +154,19 @@ function route() {
       if (param) renderOrders(param);
       else navigate('#dashboard');
       break;
+    case 'schedule':
+      if (getEncounterMode() === 'inpatient') { navigate('#dashboard'); return; }
+      renderSchedule();
+      break;
+    case 'inbox':
+      renderInbox();
+      break;
     case 'providers':
       renderProviders();
+      break;
+    case 'admin':
+      if (isAdmin()) renderAdmin();
+      else navigate('#dashboard');
       break;
     default:
       navigate('#dashboard');
@@ -259,14 +305,340 @@ function initCalculatorsNav() {
   }
 }
 
-/* ---------- Init ---------- */
-function init() {
-  seedIfEmpty();
-  initDarkMode();
+/* ---------- Auth UI ---------- */
+function showApp() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('shell').classList.remove('hidden');
+  const user = getSessionUser();
+  if (user) {
+    const el = document.getElementById('logged-in-user');
+    if (el) el.textContent = user.firstName + ' ' + user.lastName + ', ' + user.degree;
+    // Show/hide admin nav
+    const adminNav = document.getElementById('nav-admin');
+    const adminLabel = document.getElementById('admin-section-label');
+    const isAdminUser = user.role === 'admin';
+    if (adminNav) adminNav.classList.toggle('hidden', !isAdminUser);
+    if (adminLabel) adminLabel.classList.toggle('hidden', !isAdminUser);
+  }
+}
+
+function showLogin() {
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('shell').classList.add('hidden');
+  document.getElementById('login-form').classList.remove('hidden');
+  document.getElementById('register-form').classList.add('hidden');
+  document.getElementById('pending-screen').classList.add('hidden');
+  document.getElementById('password-change-screen').classList.add('hidden');
+}
+
+function initLoginDarkToggle() {
+  const btn = document.getElementById('login-dark-toggle');
+  if (!btn) return;
+  btn.textContent = document.body.classList.contains('dark-mode') ? '🌙' : '☀️';
+  btn.addEventListener('click', () => {
+    const isDark = document.body.classList.toggle('dark-mode');
+    document.body.classList.toggle('light-mode', !isDark);
+    localStorage.setItem('emr_dark_mode', isDark ? 'dark' : 'light');
+    btn.textContent = isDark ? '🌙' : '☀️';
+    // Sync the sidebar toggle too
+    const sidebarBtn = document.getElementById('dark-toggle');
+    if (sidebarBtn) sidebarBtn.textContent = isDark ? '🌙' : '☀️';
+  });
+}
+
+/* ---------- Post-login routing ---------- */
+function handlePostLogin(user) {
+  // Backwards compat: treat missing status as active
+  const status = user.status || 'active';
+  if (status === 'pending') {
+    showPendingApprovalScreen();
+    return;
+  }
+  if (user.mustChangePassword) {
+    showForcePasswordChangeScreen();
+    return;
+  }
+  showApp();
+  initAppAfterAuth();
+}
+
+function showPendingApprovalScreen() {
+  document.getElementById('login-form').classList.add('hidden');
+  document.getElementById('register-form').classList.add('hidden');
+  document.getElementById('password-change-screen').classList.add('hidden');
+  document.getElementById('pending-screen').classList.remove('hidden');
+}
+
+function showForcePasswordChangeScreen() {
+  document.getElementById('login-form').classList.add('hidden');
+  document.getElementById('register-form').classList.add('hidden');
+  document.getElementById('pending-screen').classList.add('hidden');
+  document.getElementById('password-change-screen').classList.remove('hidden');
+}
+
+/* ---------- Session timeout (15 min) ---------- */
+let _sessionTimerId = null;
+let _activityThrottleTimer = null;
+let _sessionWarningShown = false;
+
+function startSessionTimer() {
+  _sessionWarningShown = false;
+
+  // Throttled activity listeners
+  const activityHandler = () => {
+    if (_activityThrottleTimer) return;
+    _activityThrottleTimer = setTimeout(() => {
+      updateSessionActivity();
+      _sessionWarningShown = false;
+      _activityThrottleTimer = null;
+    }, 30000);
+  };
+
+  ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, activityHandler, { passive: true });
+  });
+
+  // Check every 30s
+  _sessionTimerId = setInterval(() => {
+    if (isSessionExpired(15)) {
+      logSystemAudit('SESSION_TIMEOUT', (getSessionUser() || {}).id || '', '', 'Session timed out', (getSessionUser() || {}).email || '');
+      stopSessionTimer();
+      logout();
+      showLogin();
+      showToast('Your session has expired due to inactivity.', 'error', 5000);
+      return;
+    }
+    // Warning at 13 min (show only once per activity cycle)
+    if (!_sessionWarningShown && isSessionExpired(13)) {
+      _sessionWarningShown = true;
+      showToast('Your session will expire in 2 minutes due to inactivity.', 'warning', 5000);
+    }
+  }, 30000);
+
+  // Store handler ref for cleanup
+  _sessionTimerId._activityHandler = activityHandler;
+}
+
+function stopSessionTimer() {
+  if (_sessionTimerId) {
+    const handler = _sessionTimerId._activityHandler;
+    clearInterval(_sessionTimerId);
+    if (handler) {
+      ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach(evt => {
+        document.removeEventListener(evt, handler);
+      });
+    }
+    _sessionTimerId = null;
+  }
+  if (_activityThrottleTimer) {
+    clearTimeout(_activityThrottleTimer);
+    _activityThrottleTimer = null;
+  }
+}
+
+/* ---------- Admin badge ---------- */
+function updateAdminBadge() {
+  const badge = document.getElementById('admin-badge');
+  if (!badge) return;
+  const count = getPendingUsers().length;
+  badge.textContent = count > 0 ? count : '';
+  badge.style.display = count > 0 ? '' : 'none';
+}
+
+function initLoginForm() {
+  const form = document.getElementById('login-form');
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = document.getElementById('login-email').value.trim();
+    const pw    = document.getElementById('login-password').value;
+    if (!email || !pw) { showToast('Please fill in all fields.', 'error'); return; }
+
+    const result = await login(email, pw);
+    if (!result.ok) { showToast(result.error, 'error'); return; }
+
+    // Set current provider to matching provider
+    const providers = getProviders();
+    const match = providers.find(p => p.email === result.user.email);
+    if (match) setCurrentProvider(match.id);
+
+    form.reset();
+    handlePostLogin(result.user);
+  });
+
+  document.getElementById('show-register').addEventListener('click', e => {
+    e.preventDefault();
+    document.getElementById('login-form').classList.add('hidden');
+    document.getElementById('register-form').classList.remove('hidden');
+  });
+}
+
+function initRegisterForm() {
+  const form = document.getElementById('register-form');
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+
+    const first   = document.getElementById('reg-first').value.trim();
+    const last    = document.getElementById('reg-last').value.trim();
+    const dob     = document.getElementById('reg-dob').value;
+    const npi     = document.getElementById('reg-npi').value.trim();
+    const email   = document.getElementById('reg-email').value.trim();
+    const phone   = document.getElementById('reg-phone').value.trim();
+    const degree  = document.getElementById('reg-degree').value;
+    const pw      = document.getElementById('reg-password').value;
+    const confirm = document.getElementById('reg-confirm').value;
+
+    if (!first || !last || !email || !degree || !pw) {
+      showToast('Please fill in all required fields.', 'error'); return;
+    }
+    const strength = validatePasswordStrength(pw);
+    if (!strength.valid) {
+      showToast('Password: ' + strength.errors.join(', '), 'error'); return;
+    }
+    if (pw !== confirm) {
+      showToast('Passwords do not match.', 'error'); return;
+    }
+    if (getUserByEmail(email)) {
+      showToast('An account with that email already exists.', 'error'); return;
+    }
+
+    const passwordHash = await hashPassword(pw);
+    const user = saveUser({
+      firstName: first,
+      lastName: last,
+      dob,
+      npiNumber: npi,
+      email,
+      phone,
+      degree,
+      passwordHash,
+    });
+
+    // Create matching provider record
+    saveProvider({
+      id: user.id,
+      firstName: first,
+      lastName: last,
+      degree,
+      role: 'Attending',
+      npiNumber: npi,
+      email,
+      phone,
+    });
+
+    form.reset();
+    document.getElementById('register-form').classList.add('hidden');
+    document.getElementById('login-form').classList.remove('hidden');
+    showToast('Account created! An administrator must approve your account before you can sign in.', 'success', 5000);
+  });
+
+  document.getElementById('show-login').addEventListener('click', e => {
+    e.preventDefault();
+    document.getElementById('register-form').classList.add('hidden');
+    document.getElementById('login-form').classList.remove('hidden');
+  });
+}
+
+function initLogout() {
+  const btn = document.getElementById('logout-btn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      stopSessionTimer();
+      logout();
+      showLogin();
+      showToast('Signed out.');
+    });
+  }
+}
+
+/* ---------- App init after authentication ---------- */
+function initAppAfterAuth() {
   initKeyboardShortcuts();
   initCalculatorsNav();
+  initEncounterModeToggle();
+  if (typeof updateInboxBadge === 'function') updateInboxBadge();
+  startSessionTimer();
+  updateSessionActivity();
+  updateAdminBadge();
+  window.removeEventListener('hashchange', route);
   window.addEventListener('hashchange', route);
   route();
+}
+
+/* ---------- Init ---------- */
+async function init() {
+  await seedIfEmpty();
+  initDarkMode();
+  initLoginDarkToggle();
+  initLoginForm();
+  initRegisterForm();
+  initLogout();
+  initPendingSignout();
+  initForcePasswordChange();
+
+  if (isAuthenticated()) {
+    if (isSessionExpired(15)) {
+      logout();
+      showLogin();
+      showToast('Your session has expired. Please sign in again.', 'error');
+    } else {
+      const user = getSessionUser();
+      if (user) {
+        handlePostLogin(user);
+      } else {
+        showLogin();
+      }
+    }
+  } else {
+    showLogin();
+  }
+}
+
+function initPendingSignout() {
+  const btn = document.getElementById('pending-signout');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      logout();
+      showLogin();
+      showToast('Signed out.');
+    });
+  }
+}
+
+function initForcePasswordChange() {
+  const form = document.getElementById('force-password-form');
+  if (!form) return;
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const pw = document.getElementById('new-password').value;
+    const confirm = document.getElementById('confirm-new-password').value;
+
+    if (pw !== confirm) {
+      showToast('Passwords do not match.', 'error');
+      return;
+    }
+    const strength = validatePasswordStrength(pw);
+    if (!strength.valid) {
+      showToast('Password: ' + strength.errors.join(', '), 'error');
+      return;
+    }
+
+    const user = getSessionUser();
+    if (!user) { showLogin(); return; }
+    await changePassword(user.id, pw);
+    form.reset();
+    showToast('Password changed successfully!', 'success');
+    showApp();
+    initAppAfterAuth();
+  });
+
+  const signoutBtn = document.getElementById('password-change-signout');
+  if (signoutBtn) {
+    signoutBtn.addEventListener('click', () => {
+      logout();
+      showLogin();
+      showToast('Signed out.');
+    });
+  }
 }
 
 init();
