@@ -9,6 +9,7 @@ let _notesSortDir          = 'desc';   // 'desc' | 'asc' | 'provider'
 let _notesView             = 'grouped'; // 'grouped' | 'timeline'
 let _searchOpen            = false;
 let _pendingScrollSection  = null;
+let _currentOverviewSubTab = 'all';
 
 /* ---------- Constants ---------- */
 const VISIT_TYPES = {
@@ -50,6 +51,16 @@ const DEGREE_LABEL = {
   PharmD: 'PharmD — Pharmacy Notes',
 };
 
+const OVERVIEW_SUBTABS = [
+  { key: 'all',           label: 'All',            color: 'all' },
+  { key: 'profile',       label: 'Profile',        color: 'profile' },
+  { key: 'problems',      label: 'Problems/Hx',    color: 'problems' },
+  { key: 'medications',   label: 'Medications',     color: 'medications' },
+  { key: 'results',       label: 'Results',         color: 'results' },
+  { key: 'orders',        label: 'Orders',          color: 'orders' },
+  { key: 'immunizations', label: 'Immunizations',   color: 'immunizations' },
+];
+
 /* ============================================================
    MAIN ENTRY
    ============================================================ */
@@ -62,6 +73,11 @@ function renderChart(patientId, tab) {
 
   const app = document.getElementById('app');
   app.innerHTML = '';
+  app.classList.add('chart-view');
+
+  if (_currentChartTab !== 'overview') {
+    _currentOverviewSubTab = 'all';
+  }
 
   const patient = getPatient(patientId);
   if (!patient) {
@@ -149,6 +165,7 @@ function buildTabBar(patientId, activeTab) {
   tabs.forEach(({ key, label }) => {
     const btn = document.createElement('button');
     btn.className = 'chart-tab' + (activeTab === key ? ' active' : '');
+    btn.setAttribute('data-omr-color', key);
     btn.textContent = label;
 
     if (key !== 'overview') {
@@ -179,6 +196,43 @@ function buildTabBar(patientId, activeTab) {
   bar.appendChild(searchBtn);
 
   return bar;
+}
+
+/* ============================================================
+   SUB-TAB BAR (Overview categories)
+   ============================================================ */
+function buildSubTabBar(patientId) {
+  const bar = document.createElement('div');
+  bar.className = 'chart-subtab-bar';
+
+  OVERVIEW_SUBTABS.forEach(({ key, label, color }) => {
+    const btn = document.createElement('button');
+    btn.className = 'chart-subtab' + (_currentOverviewSubTab === key ? ' active' : '');
+    btn.setAttribute('data-omr-color', color);
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      _currentOverviewSubTab = key;
+      bar.querySelectorAll('.chart-subtab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _applySubTabFilter();
+    });
+    bar.appendChild(btn);
+  });
+
+  return bar;
+}
+
+function _applySubTabFilter() {
+  const container = document.getElementById('overview-sections-container');
+  if (!container) return;
+  const sections = container.querySelectorAll('[data-subtab-category]');
+  sections.forEach(el => {
+    if (_currentOverviewSubTab === 'all') {
+      el.style.display = '';
+    } else {
+      el.style.display = el.getAttribute('data-subtab-category') === _currentOverviewSubTab ? '' : 'none';
+    }
+  });
 }
 
 /* ============================================================
@@ -441,7 +495,19 @@ function _scrollToSection(sectionId, patientId) {
     navigate('#chart/' + patientId + '/overview');
     return;
   }
+  // Auto-switch to 'all' if the target is hidden by current sub-tab filter
   const el = document.getElementById(sectionId);
+  if (el && el.offsetParent === null) {
+    _currentOverviewSubTab = 'all';
+    _applySubTabFilter();
+    // Update active state on sub-tab buttons
+    const bar = document.querySelector('.chart-subtab-bar');
+    if (bar) {
+      bar.querySelectorAll('.chart-subtab').forEach(b => {
+        b.classList.toggle('active', b.textContent === 'All');
+      });
+    }
+  }
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -449,65 +515,72 @@ function _scrollToSection(sectionId, patientId) {
    OVERVIEW CONTENT (all sections)
    ============================================================ */
 function buildOverviewContent(app, patient, patientId) {
-  // 1. Demographics + vitals strip
-  app.appendChild(buildDemographicsCard(patient, patientId));
+  // Sub-tab bar
+  app.appendChild(buildSubTabBar(patientId));
 
-  // 2. Vitals Trend
-  app.appendChild(buildVitalsTrendCard(patientId));
+  // Sections container
+  const container = document.createElement('div');
+  container.id = 'overview-sections-container';
 
-  // 3. Active Problem List
-  app.appendChild(buildProblemsCard(patientId));
+  // Helper to wrap a section in a category div
+  function wrap(category, el) {
+    const w = document.createElement('div');
+    w.setAttribute('data-subtab-category', category);
+    w.appendChild(el);
+    container.appendChild(w);
+  }
 
-  // 4. Preventive Care
-  app.appendChild(buildPreventiveCareCard(patient, patientId));
+  // Profile category
+  wrap('profile', buildDemographicsCard(patient, patientId));
+  const upcomingApptCard = buildUpcomingAppointmentsCard(patientId);
+  if (upcomingApptCard) wrap('profile', upcomingApptCard);
+  wrap('profile', buildVitalsTrendCard(patientId));
+  wrap('profile', buildSocialHistoryCard(patientId));
 
-  // 5. Allergies + Social History (two-col)
-  const twoCol1 = document.createElement('div');
-  twoCol1.className = 'chart-two-col';
-  twoCol1.appendChild(buildAllergiesCard(patientId));
-  twoCol1.appendChild(buildSocialHistoryCard(patientId));
-  app.appendChild(twoCol1);
+  // Problems/Hx category
+  wrap('problems', buildProblemsCard(patientId));
+  wrap('problems', buildPreventiveCareCard(patient, patientId));
+  wrap('problems', buildAllergiesCard(patientId));
+  wrap('problems', buildPMHCard(patientId));
+  wrap('problems', buildFamilyHistoryCard(patientId));
+  wrap('problems', buildSurgeriesCard(patientId));
 
-  // 6. PMH + Family History
-  app.appendChild(buildPMHCard(patientId));
-  app.appendChild(buildFamilyHistoryCard(patientId));
+  // Medications category
+  wrap('medications', buildMedicationsCard(patientId));
 
-  // 7. Medications + Immunizations (two-col)
-  const twoCol2 = document.createElement('div');
-  twoCol2.className = 'chart-two-col';
-  twoCol2.appendChild(buildMedicationsCard(patientId));
-  twoCol2.appendChild(buildImmunizationsCard(patientId));
-  app.appendChild(twoCol2);
+  // Results category
+  wrap('results', buildLabResultsCard(patientId));
 
-  // 8. Surgeries
-  app.appendChild(buildSurgeriesCard(patientId));
+  // Orders category
+  wrap('orders', buildChartOrdersCard(patientId));
+  wrap('orders', buildReferralsCard(patientId));
+  wrap('orders', buildEncountersCard(patientId));
+  wrap('orders', buildDocumentsCard(patientId));
+  wrap('orders', buildPastNotesCard(patientId));
+  wrap('orders', buildAuditLogCard(patientId));
 
-  // 9. Lab Results
-  app.appendChild(buildLabResultsCard(patientId));
+  // Immunizations category
+  wrap('immunizations', buildImmunizationsCard(patientId));
 
-  // 10. Orders
-  app.appendChild(buildChartOrdersCard(patientId));
+  app.appendChild(container);
 
-  // 11. Referrals
-  app.appendChild(buildReferralsCard(patientId));
-
-  // 12. Encounters
-  app.appendChild(buildEncountersCard(patientId));
-
-  // 13. Documents
-  app.appendChild(buildDocumentsCard(patientId));
-
-  // 14. Past Notes
-  app.appendChild(buildPastNotesCard(patientId));
-
-  // 15. Audit Log (collapsed by default)
-  app.appendChild(buildAuditLogCard(patientId));
+  // Apply current sub-tab filter
+  _applySubTabFilter();
 
   // Handle pending scroll from search panel navigation
   if (_pendingScrollSection) {
     const id = _pendingScrollSection;
     _pendingScrollSection = null;
     requestAnimationFrame(() => {
+      // Switch to 'all' so the section is visible
+      _currentOverviewSubTab = 'all';
+      _applySubTabFilter();
+      const bar = document.querySelector('.chart-subtab-bar');
+      if (bar) {
+        bar.querySelectorAll('.chart-subtab').forEach(b => {
+          b.classList.toggle('active', b.textContent === 'All');
+        });
+      }
       const el = document.getElementById(id);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -651,11 +724,32 @@ function buildDemographicsCard(patient, patientId) {
 
   const grid = document.createElement('div');
   grid.className = 'demo-grid';
+
+  const addressParts = [patient.addressStreet, patient.addressCity, patient.addressState, patient.addressZip].filter(Boolean);
+  const addressStr = addressParts.length > 0 ? addressParts.join(', ') : '';
+
+  const ecParts = [patient.emergencyContactName, patient.emergencyContactPhone, patient.emergencyContactRelationship].filter(Boolean);
+  const ecStr = ecParts.length > 0 ? ecParts.join(' · ') : '';
+
+  const pharmParts = [patient.pharmacyName, patient.pharmacyPhone].filter(Boolean);
+  const pharmStr = pharmParts.length > 0 ? pharmParts.join(' · ') : '';
+
+  // Panel providers
+  const panelProvNames = (patient.panelProviders || []).map(id => {
+    const p = getProvider(id);
+    return p ? p.firstName + ' ' + p.lastName + ', ' + p.degree : null;
+  }).filter(Boolean).join('; ');
+
   [
     ['Date of Birth', formatDate(patient.dob) + (dobDate ? ' (' + ageStr + ')' : '')],
     ['Sex',          patient.sex],
     ['Phone',        patient.phone],
+    ['Email',        patient.email],
     ['Insurance',    patient.insurance],
+    ['Address',      addressStr],
+    ['Emergency Contact', ecStr],
+    ['Pharmacy',     pharmStr],
+    ['Panel Providers', panelProvNames],
     ['Registered',   formatDate(patient.createdAt)],
   ].forEach(([label, value]) => {
     const item = document.createElement('div');
@@ -1103,8 +1197,23 @@ function buildMedicationsCard(patientId) {
 
     const tdAct = document.createElement('td');
     tdAct.style.textAlign = 'right';
+    tdAct.style.whiteSpace = 'nowrap';
+    if (med.status === 'Current') {
+      tdAct.appendChild(makeBtn('Renew', 'btn btn-primary btn-sm', () => {
+        const today = new Date().toISOString().split('T')[0];
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + 90);
+        savePatientMedication({
+          id: med.id,
+          startDate: today,
+          endDate: endDate.toISOString().split('T')[0],
+        });
+        showToast(med.name + ' renewed for 90 days.', 'success');
+        refreshChart(patientId);
+      }));
+    }
     tdAct.appendChild(makeBtn('Edit', 'btn btn-secondary btn-sm',
-      () => openMedicationModal(patientId, med.id)));
+      () => openMedicationModal(patientId, med.id), 'margin-left:6px'));
     tdAct.appendChild(makeBtn('Delete', 'btn btn-danger btn-sm', () => {
       confirmAction({
         title: 'Remove Medication', message: 'Remove ' + med.name + ' from medication list?',
@@ -2781,7 +2890,8 @@ function openNewEncounterModal(patientId, prefillType) {
     `<option value="${esc(p.id)}">${esc(p.lastName)}, ${esc(p.firstName)} — ${esc(p.degree)}</option>`
   ).join('');
 
-  const effectivePrefill = prefillType && VISIT_TYPES[prefillType] !== undefined ? prefillType : null;
+  const modeDefault = getEncounterMode() === 'inpatient' ? 'Inpatient' : 'Outpatient';
+  const effectivePrefill = prefillType && VISIT_TYPES[prefillType] !== undefined ? prefillType : modeDefault;
   const typeOpts = Object.keys(VISIT_TYPES).map(t =>
     `<option value="${t}"${t === effectivePrefill ? ' selected' : ''}>${t}</option>`
   ).join('');
@@ -2852,6 +2962,13 @@ function buildSubtypeOptions(subtypes) {
    MODALS — Edit Patient
    ============================================================ */
 function openEditPatientModal(patient, onSave) {
+  const providers = getProviders();
+  const panelProvs = patient.panelProviders || [];
+  let providerCheckboxes = providers.map(p => {
+    const checked = panelProvs.includes(p.id) ? ' checked' : '';
+    return '<label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" class="ep-panel-prov" value="' + esc(p.id) + '"' + checked + ' /> ' + esc(p.lastName + ', ' + p.firstName + ', ' + p.degree) + '</label>';
+  }).join('');
+
   const bodyHTML = `
     <div class="form-row">
       <div class="form-group">
@@ -2884,10 +3001,67 @@ function openEditPatientModal(patient, onSave) {
         <input class="form-control" id="ep-phone" value="${esc(patient.phone)}" />
       </div>
       <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-control" id="ep-email" type="email" value="${esc(patient.email || '')}" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label class="form-label">Insurance</label>
         <input class="form-control" id="ep-insurance" value="${esc(patient.insurance)}" />
       </div>
     </div>
+    <h4 style="font-size:13px;font-weight:600;color:var(--text-secondary);margin:12px 0 6px">Address</h4>
+    <div class="form-group">
+      <label class="form-label">Street</label>
+      <input class="form-control" id="ep-street" value="${esc(patient.addressStreet || '')}" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">City</label>
+        <input class="form-control" id="ep-city" value="${esc(patient.addressCity || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">State</label>
+        <input class="form-control" id="ep-state" value="${esc(patient.addressState || '')}" maxlength="2" style="max-width:80px" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">ZIP</label>
+        <input class="form-control" id="ep-zip" value="${esc(patient.addressZip || '')}" maxlength="10" style="max-width:100px" />
+      </div>
+    </div>
+    <h4 style="font-size:13px;font-weight:600;color:var(--text-secondary);margin:12px 0 6px">Emergency Contact</h4>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Name</label>
+        <input class="form-control" id="ep-ec-name" value="${esc(patient.emergencyContactName || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone</label>
+        <input class="form-control" id="ep-ec-phone" value="${esc(patient.emergencyContactPhone || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Relationship</label>
+        <input class="form-control" id="ep-ec-rel" value="${esc(patient.emergencyContactRelationship || '')}" />
+      </div>
+    </div>
+    <h4 style="font-size:13px;font-weight:600;color:var(--text-secondary);margin:12px 0 6px">Preferred Pharmacy</h4>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Pharmacy Name</label>
+        <input class="form-control" id="ep-pharm-name" value="${esc(patient.pharmacyName || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone</label>
+        <input class="form-control" id="ep-pharm-phone" value="${esc(patient.pharmacyPhone || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fax</label>
+        <input class="form-control" id="ep-pharm-fax" value="${esc(patient.pharmacyFax || '')}" />
+      </div>
+    </div>
+    <h4 style="font-size:13px;font-weight:600;color:var(--text-secondary);margin:12px 0 6px">Panel Providers</h4>
+    <div id="ep-panel-provs" style="display:flex;flex-direction:column;gap:4px">${providerCheckboxes || '<span style="color:var(--text-muted);font-size:13px">No providers available</span>'}</div>
   `;
 
   const footerHTML = `
@@ -2895,18 +3069,33 @@ function openEditPatientModal(patient, onSave) {
     <button class="btn btn-primary" id="ep-save">Save</button>
   `;
 
-  openModal({ title: 'Edit Patient', bodyHTML, footerHTML });
+  openModal({ title: 'Edit Patient', bodyHTML, footerHTML, size: 'lg' });
   document.getElementById('ep-cancel').addEventListener('click', closeModal);
   document.getElementById('ep-save').addEventListener('click', () => {
     const firstName = document.getElementById('ep-first').value.trim();
     const lastName  = document.getElementById('ep-last').value.trim();
     if (!firstName || !lastName) { showToast('Name is required.', 'error'); return; }
+
+    const selectedProviders = Array.from(document.querySelectorAll('.ep-panel-prov:checked')).map(cb => cb.value);
+
     savePatient({
       id: patient.id, firstName, lastName,
       dob:       document.getElementById('ep-dob').value,
       sex:       document.getElementById('ep-sex').value,
       phone:     document.getElementById('ep-phone').value.trim(),
+      email:     document.getElementById('ep-email').value.trim(),
       insurance: document.getElementById('ep-insurance').value.trim(),
+      addressStreet: document.getElementById('ep-street').value.trim(),
+      addressCity:   document.getElementById('ep-city').value.trim(),
+      addressState:  document.getElementById('ep-state').value.trim(),
+      addressZip:    document.getElementById('ep-zip').value.trim(),
+      emergencyContactName:         document.getElementById('ep-ec-name').value.trim(),
+      emergencyContactPhone:        document.getElementById('ep-ec-phone').value.trim(),
+      emergencyContactRelationship: document.getElementById('ep-ec-rel').value.trim(),
+      pharmacyName:  document.getElementById('ep-pharm-name').value.trim(),
+      pharmacyPhone: document.getElementById('ep-pharm-phone').value.trim(),
+      pharmacyFax:   document.getElementById('ep-pharm-fax').value.trim(),
+      panelProviders: selectedProviders,
     });
     closeModal();
     showToast('Patient updated.', 'success');
@@ -3384,6 +3573,50 @@ function openDocumentModal(patientId) {
 /* ============================================================
    PRINT PATIENT SUMMARY
    ============================================================ */
+/* ============================================================
+   UPCOMING APPOINTMENTS (chart overview card)
+   ============================================================ */
+function buildUpcomingAppointmentsCard(patientId) {
+  const now = new Date();
+  const appts = getAppointmentsByPatient(patientId)
+    .filter(a => new Date(a.dateTime) >= now && a.status !== 'Cancelled' && a.status !== 'No-Show');
+
+  if (appts.length === 0) return null;
+
+  const card = chartCard('Upcoming Appointments', null);
+  card.id = 'section-appointments';
+
+  appts.slice(0, 5).forEach(appt => {
+    const provider = getProvider(appt.providerId);
+    const item = document.createElement('div');
+    item.className = 'upcoming-appt-item';
+    item.addEventListener('click', () => navigate('#schedule'));
+
+    const time = document.createElement('span');
+    time.className = 'upcoming-appt-time';
+    time.textContent = formatDateTime(appt.dateTime);
+    const type = document.createElement('span');
+    type.className = 'upcoming-appt-type';
+    type.textContent = appt.visitType + (appt.reason ? ' — ' + appt.reason : '');
+    const prov = document.createElement('span');
+    prov.className = 'upcoming-appt-provider';
+    prov.textContent = provider ? provider.lastName + ', ' + provider.firstName : '—';
+
+    const statusBadge = document.createElement('span');
+    statusBadge.className = 'badge badge-' + appt.status.toLowerCase();
+    statusBadge.textContent = appt.status;
+    statusBadge.style.marginLeft = '8px';
+
+    item.appendChild(time);
+    item.appendChild(type);
+    item.appendChild(prov);
+    item.appendChild(statusBadge);
+    card.appendChild(item);
+  });
+
+  return card;
+}
+
 function printPatientSummary(patientId) {
   const patient = getPatient(patientId);
   if (!patient) return;
@@ -3421,7 +3654,10 @@ function printPatientSummary(patientId) {
     @media print { body { margin: 0; } }
   </style></head><body>
   <h1>${patient.lastName}, ${patient.firstName}</h1>
-  <div class="mrn">${patient.mrn} · DOB: ${patient.dob || '—'} (${age} y/o) · ${patient.sex || ''} · ${patient.phone || ''}</div>
+  <div class="mrn">${patient.mrn} · DOB: ${patient.dob || '—'} (${age} y/o) · ${patient.sex || ''} · ${patient.phone || ''}${patient.email ? ' · ' + patient.email : ''}</div>
+  ${patient.addressStreet ? '<div class="mrn">' + [patient.addressStreet, patient.addressCity, patient.addressState, patient.addressZip].filter(Boolean).join(', ') + '</div>' : ''}
+  ${patient.emergencyContactName ? '<div class="mrn">Emergency Contact: ' + patient.emergencyContactName + (patient.emergencyContactPhone ? ' · ' + patient.emergencyContactPhone : '') + (patient.emergencyContactRelationship ? ' (' + patient.emergencyContactRelationship + ')' : '') + '</div>' : ''}
+  ${patient.pharmacyName ? '<div class="mrn">Pharmacy: ' + patient.pharmacyName + (patient.pharmacyPhone ? ' · ' + patient.pharmacyPhone : '') + '</div>' : ''}
   <div style="font-size:11px;color:#666;margin-top:2px">Printed: ${new Date().toLocaleString()}</div>
   <h2>Allergies</h2>
   ${allergies.length === 0 ? '<p>No known drug allergies</p>' :

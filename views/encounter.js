@@ -89,6 +89,9 @@ function renderEncounter(encounterId) {
     app.appendChild(buildMedRecBanner(encounter, note));
   }
 
+  /* ---------- Diagnoses & Billing card ---------- */
+  app.appendChild(buildBillingSection(encounter, isSigned));
+
   /* ---------- Clinical Note card ---------- */
   const noteCard = document.createElement('div');
   noteCard.className = 'card';
@@ -759,4 +762,289 @@ function buildMedRecBanner(encounter, note) {
   banner.appendChild(body);
   container.appendChild(banner);
   return container;
+}
+
+/* ============================================================
+   DIAGNOSES & BILLING SECTION
+   ============================================================ */
+const COMMON_ICD10 = [
+  { code: 'I10',     desc: 'Essential hypertension' },
+  { code: 'E11.9',   desc: 'Type 2 diabetes mellitus without complications' },
+  { code: 'J06.9',   desc: 'Acute upper respiratory infection, unspecified' },
+  { code: 'M54.5',   desc: 'Low back pain' },
+  { code: 'J20.9',   desc: 'Acute bronchitis, unspecified' },
+  { code: 'N39.0',   desc: 'Urinary tract infection, site not specified' },
+  { code: 'F41.1',   desc: 'Generalized anxiety disorder' },
+  { code: 'F32.9',   desc: 'Major depressive disorder, single episode, unspecified' },
+  { code: 'E78.5',   desc: 'Hyperlipidemia, unspecified' },
+  { code: 'K21.0',   desc: 'Gastro-esophageal reflux disease with esophagitis' },
+  { code: 'G43.909', desc: 'Migraine, unspecified, not intractable' },
+  { code: 'J45.20',  desc: 'Mild intermittent asthma, uncomplicated' },
+  { code: 'R05.9',   desc: 'Cough, unspecified' },
+  { code: 'K59.00',  desc: 'Constipation, unspecified' },
+  { code: 'M79.3',   desc: 'Panniculitis, unspecified' },
+  { code: 'R10.9',   desc: 'Unspecified abdominal pain' },
+  { code: 'R51.9',   desc: 'Headache, unspecified' },
+  { code: 'J02.9',   desc: 'Acute pharyngitis, unspecified' },
+  { code: 'L30.9',   desc: 'Dermatitis, unspecified' },
+  { code: 'R53.83',  desc: 'Other fatigue' },
+];
+
+const COMMON_CPT = [
+  { code: '99211', desc: 'Office visit, established — minimal' },
+  { code: '99212', desc: 'Office visit, established — straightforward' },
+  { code: '99213', desc: 'Office visit, established — low complexity' },
+  { code: '99214', desc: 'Office visit, established — moderate complexity' },
+  { code: '99215', desc: 'Office visit, established — high complexity' },
+  { code: '99201', desc: 'Office visit, new patient — straightforward' },
+  { code: '99202', desc: 'Office visit, new patient — straightforward (expanded)' },
+  { code: '99203', desc: 'Office visit, new patient — low complexity' },
+  { code: '99204', desc: 'Office visit, new patient — moderate complexity' },
+  { code: '99205', desc: 'Office visit, new patient — high complexity' },
+  { code: '99381', desc: 'Preventive visit, new, infant' },
+  { code: '99391', desc: 'Preventive visit, established, infant' },
+  { code: '99395', desc: 'Preventive visit, established, 18-39' },
+  { code: '99396', desc: 'Preventive visit, established, 40-64' },
+  { code: '99397', desc: 'Preventive visit, established, 65+' },
+];
+
+function buildBillingSection(encounter, isSigned) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.margin = '0 20px 20px';
+
+  const hdr = document.createElement('div');
+  hdr.className = 'card-header';
+  const title = document.createElement('span');
+  title.className = 'card-title';
+  title.textContent = 'Diagnoses & Billing';
+  hdr.appendChild(title);
+
+  if (!isSigned) {
+    const addDxBtn = makeEncBtn('+ Diagnosis', 'btn btn-secondary btn-sm', () => openDiagnosisEntry(encounter));
+    const addCptBtn = makeEncBtn('+ CPT Code', 'btn btn-secondary btn-sm', () => openCPTEntry(encounter));
+    addDxBtn.style.marginLeft = 'auto';
+    addCptBtn.style.marginLeft = '6px';
+    hdr.appendChild(addDxBtn);
+    hdr.appendChild(addCptBtn);
+  }
+
+  card.appendChild(hdr);
+
+  const body = document.createElement('div');
+  body.className = 'billing-section';
+
+  // Diagnoses list
+  const dxTitle = document.createElement('h4');
+  dxTitle.textContent = 'Diagnoses (ICD-10)';
+  body.appendChild(dxTitle);
+
+  const diagnoses = encounter.diagnoses || [];
+  if (diagnoses.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'color:var(--text-muted);font-size:13px;padding:4px 0 12px';
+    empty.textContent = 'No diagnoses added.';
+    body.appendChild(empty);
+  } else {
+    const dxList = document.createElement('ul');
+    dxList.className = 'dx-list';
+    diagnoses.forEach((dx, i) => {
+      const item = document.createElement('li');
+      item.className = 'dx-item' + (dx.primary ? ' primary' : '');
+
+      const code = document.createElement('span');
+      code.className = 'dx-code';
+      code.textContent = dx.code;
+
+      const desc = document.createElement('span');
+      desc.textContent = dx.description;
+
+      if (dx.primary) {
+        const badge = document.createElement('span');
+        badge.className = 'badge badge-signed';
+        badge.textContent = 'Primary';
+        badge.style.marginLeft = '6px';
+        item.appendChild(code);
+        item.appendChild(desc);
+        item.appendChild(badge);
+      } else {
+        item.appendChild(code);
+        item.appendChild(desc);
+      }
+
+      if (!isSigned) {
+        const rmBtn = document.createElement('button');
+        rmBtn.className = 'btn btn-danger btn-sm';
+        rmBtn.textContent = 'Remove';
+        rmBtn.style.marginLeft = 'auto';
+        rmBtn.addEventListener('click', () => {
+          diagnoses.splice(i, 1);
+          saveEncounter({ id: encounter.id, diagnoses });
+          renderEncounter(encounter.id);
+        });
+        item.appendChild(rmBtn);
+      }
+
+      dxList.appendChild(item);
+    });
+    body.appendChild(dxList);
+  }
+
+  // CPT codes list
+  const cptTitle = document.createElement('h4');
+  cptTitle.textContent = 'CPT Codes';
+  body.appendChild(cptTitle);
+
+  const cptCodes = encounter.cptCodes || [];
+  if (cptCodes.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'color:var(--text-muted);font-size:13px;padding:4px 0';
+    empty.textContent = 'No CPT codes added.';
+    body.appendChild(empty);
+  } else {
+    cptCodes.forEach((cpt, i) => {
+      const item = document.createElement('div');
+      item.className = 'cpt-item';
+
+      const code = document.createElement('span');
+      code.className = 'dx-code';
+      code.textContent = cpt.code;
+      const desc = document.createElement('span');
+      desc.textContent = cpt.description;
+      item.appendChild(code);
+      item.appendChild(desc);
+
+      if (!isSigned) {
+        const rmBtn = document.createElement('button');
+        rmBtn.className = 'btn btn-danger btn-sm';
+        rmBtn.textContent = 'Remove';
+        rmBtn.style.marginLeft = 'auto';
+        rmBtn.addEventListener('click', () => {
+          cptCodes.splice(i, 1);
+          saveEncounter({ id: encounter.id, cptCodes });
+          renderEncounter(encounter.id);
+        });
+        item.appendChild(rmBtn);
+      }
+
+      body.appendChild(item);
+    });
+  }
+
+  card.appendChild(body);
+  return card;
+}
+
+function openDiagnosisEntry(encounter) {
+  let commonOpts = '<option value="">— Common ICD-10 Codes —</option>';
+  COMMON_ICD10.forEach(c => {
+    commonOpts += '<option value="' + esc(c.code) + '">' + esc(c.code + ' — ' + c.desc) + '</option>';
+  });
+
+  const bodyHTML = `
+    <div class="form-group">
+      <label class="form-label">Select Common Code</label>
+      <select class="form-control" id="dx-common">${commonOpts}</select>
+    </div>
+    <div style="text-align:center;color:var(--text-muted);font-size:12px;margin:8px 0">— or enter manually —</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">ICD-10 Code</label>
+        <input class="form-control" id="dx-code" placeholder="e.g. I10" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input class="form-control" id="dx-desc" placeholder="Diagnosis description" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+        <input type="checkbox" id="dx-primary" /> Primary diagnosis
+      </label>
+    </div>
+  `;
+
+  openModal({
+    title: 'Add Diagnosis',
+    bodyHTML,
+    footerHTML: '<button class="btn btn-secondary" id="dx-cancel">Cancel</button><button class="btn btn-primary" id="dx-save">Add</button>',
+  });
+
+  // Auto-fill from common dropdown
+  document.getElementById('dx-common').addEventListener('change', (e) => {
+    const sel = COMMON_ICD10.find(c => c.code === e.target.value);
+    if (sel) {
+      document.getElementById('dx-code').value = sel.code;
+      document.getElementById('dx-desc').value = sel.desc;
+    }
+  });
+
+  document.getElementById('dx-cancel').addEventListener('click', closeModal);
+  document.getElementById('dx-save').addEventListener('click', () => {
+    const code = document.getElementById('dx-code').value.trim();
+    const description = document.getElementById('dx-desc').value.trim();
+    if (!code || !description) { showToast('Code and description are required.', 'error'); return; }
+
+    const diagnoses = encounter.diagnoses || [];
+    const primary = document.getElementById('dx-primary').checked;
+    if (primary) diagnoses.forEach(d => d.primary = false);
+    diagnoses.push({ code, description, primary });
+    saveEncounter({ id: encounter.id, diagnoses });
+    closeModal();
+    showToast('Diagnosis added.', 'success');
+    renderEncounter(encounter.id);
+  });
+}
+
+function openCPTEntry(encounter) {
+  let commonOpts = '<option value="">— Common CPT Codes —</option>';
+  COMMON_CPT.forEach(c => {
+    commonOpts += '<option value="' + esc(c.code) + '">' + esc(c.code + ' — ' + c.desc) + '</option>';
+  });
+
+  const bodyHTML = `
+    <div class="form-group">
+      <label class="form-label">Select Common Code</label>
+      <select class="form-control" id="cpt-common">${commonOpts}</select>
+    </div>
+    <div style="text-align:center;color:var(--text-muted);font-size:12px;margin:8px 0">— or enter manually —</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">CPT Code</label>
+        <input class="form-control" id="cpt-code" placeholder="e.g. 99213" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input class="form-control" id="cpt-desc" placeholder="Code description" />
+      </div>
+    </div>
+  `;
+
+  openModal({
+    title: 'Add CPT Code',
+    bodyHTML,
+    footerHTML: '<button class="btn btn-secondary" id="cpt-cancel">Cancel</button><button class="btn btn-primary" id="cpt-save">Add</button>',
+  });
+
+  document.getElementById('cpt-common').addEventListener('change', (e) => {
+    const sel = COMMON_CPT.find(c => c.code === e.target.value);
+    if (sel) {
+      document.getElementById('cpt-code').value = sel.code;
+      document.getElementById('cpt-desc').value = sel.desc;
+    }
+  });
+
+  document.getElementById('cpt-cancel').addEventListener('click', closeModal);
+  document.getElementById('cpt-save').addEventListener('click', () => {
+    const code = document.getElementById('cpt-code').value.trim();
+    const description = document.getElementById('cpt-desc').value.trim();
+    if (!code || !description) { showToast('Code and description are required.', 'error'); return; }
+
+    const cptCodes = encounter.cptCodes || [];
+    cptCodes.push({ code, description });
+    saveEncounter({ id: encounter.id, cptCodes });
+    closeModal();
+    showToast('CPT code added.', 'success');
+    renderEncounter(encounter.id);
+  });
 }
