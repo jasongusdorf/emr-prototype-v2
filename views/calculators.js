@@ -4,6 +4,29 @@
    No localStorage reads/writes — purely computational.
    ============================================================ */
 
+function _getCalcPatientContext() {
+  // Try to get patient from current route (chart or encounter)
+  try {
+    const hash = window.location.hash || '';
+    let patientId = '';
+    if (hash.startsWith('#chart/')) patientId = hash.split('/')[1];
+    else if (hash.startsWith('#encounter/')) {
+      const encId = hash.split('/')[1];
+      const enc = typeof getEncounter === 'function' ? getEncounter(encId) : null;
+      if (enc) patientId = enc.patientId;
+    }
+    if (patientId) {
+      const p = typeof getPatient === 'function' ? getPatient(patientId) : null;
+      if (p) {
+        const age = p.dob ? Math.floor((Date.now() - new Date(p.dob).getTime()) / 31557600000) : null;
+        const sex = (p.sex || '').toLowerCase().startsWith('f') ? 'female' : ((p.sex || '').toLowerCase().startsWith('m') ? 'male' : null);
+        return { age, sex };
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return { age: null, sex: null };
+}
+
 function openCalculatorsModal() {
   const TABS = [
     { id: 'bmi',        label: 'BMI'             },
@@ -115,6 +138,17 @@ function _buildBMIPanel() {
     catEl.style.fontWeight = '600';
   }
 
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'btn btn-secondary btn-sm';
+  resetBtn.textContent = 'Reset';
+  resetBtn.style.marginTop = '12px';
+  resetBtn.addEventListener('click', () => {
+    ['bmi-weight','bmi-ft','bmi-in'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    right.querySelector('.calc-result-value').textContent = '—';
+    right.querySelector('.calc-result-category').textContent = '';
+  });
+  left.appendChild(resetBtn);
+
   setTimeout(() => {
     document.getElementById('bmi-weight')?.addEventListener('input', calc);
     document.getElementById('bmi-ft')?.addEventListener('input', calc);
@@ -165,7 +199,7 @@ function _buildEGFRPanel() {
     const sex = document.getElementById('egfr-sex')?.value;
     const valEl = right.querySelector('.calc-result-value');
     const catEl = right.querySelector('.calc-result-category');
-    if (!cr || !age || cr <= 0 || age <= 0) { valEl.textContent = '—'; catEl.textContent = ''; return; }
+    if (!cr || !age || cr <= 0 || age < 18) { valEl.textContent = '—'; catEl.textContent = age && age < 18 ? 'Age must be ≥ 18' : ''; return; }
 
     // CKD-EPI 2021 (race-free)
     const isFemale = sex === 'female';
@@ -192,7 +226,23 @@ function _buildEGFRPanel() {
     catEl.style.fontWeight = '600';
   }
 
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'btn btn-secondary btn-sm';
+  resetBtn.textContent = 'Reset';
+  resetBtn.style.marginTop = '12px';
+  resetBtn.addEventListener('click', () => {
+    ['egfr-cr','egfr-age'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const sexEl = document.getElementById('egfr-sex'); if (sexEl) sexEl.selectedIndex = 0;
+    right.querySelector('.calc-result-value').textContent = '—';
+    right.querySelector('.calc-result-category').textContent = '';
+  });
+  left.appendChild(resetBtn);
+
   setTimeout(() => {
+    // Pre-fill from patient context
+    const ctx = _getCalcPatientContext();
+    if (ctx.age) { const el = document.getElementById('egfr-age'); if (el && !el.value) el.value = ctx.age; }
+    if (ctx.sex) { const el = document.getElementById('egfr-sex'); if (el) el.value = ctx.sex; }
     document.getElementById('egfr-cr')?.addEventListener('input', calc);
     document.getElementById('egfr-age')?.addEventListener('input', calc);
     document.getElementById('egfr-sex')?.addEventListener('change', calc);
@@ -227,13 +277,33 @@ function _buildCHA2DS2Panel() {
     grp.style.marginBottom = '8px';
     const cb = document.createElement('input');
     cb.type = 'checkbox'; cb.id = f.id;
-    cb.addEventListener('change', calc);
+    cb.addEventListener('change', () => {
+      // Age mutual exclusivity: ≥75 and 65-74 cannot both be checked
+      if (f.id === 'cha-age75' && cb.checked) {
+        const other = document.getElementById('cha-age6574');
+        if (other) other.checked = false;
+      } else if (f.id === 'cha-age6574' && cb.checked) {
+        const other = document.getElementById('cha-age75');
+        if (other) other.checked = false;
+      }
+      calc();
+    });
     const lbl = document.createElement('label');
     lbl.htmlFor = f.id;
     lbl.textContent = f.label + ' (+' + f.pts + ')';
     grp.appendChild(cb); grp.appendChild(lbl);
     left.appendChild(grp);
   });
+
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'btn btn-secondary btn-sm';
+  resetBtn.textContent = 'Reset';
+  resetBtn.style.marginTop = '8px';
+  resetBtn.addEventListener('click', () => {
+    factors.forEach(f => { const el = document.getElementById(f.id); if (el) el.checked = false; });
+    calc();
+  });
+  left.appendChild(resetBtn);
 
   const right = document.createElement('div');
   right.className = 'calc-result-box';
@@ -301,6 +371,16 @@ function _buildCURB65Panel() {
     grp.appendChild(cb); grp.appendChild(lbl);
     left.appendChild(grp);
   });
+
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'btn btn-secondary btn-sm';
+  resetBtn.textContent = 'Reset';
+  resetBtn.style.marginTop = '8px';
+  resetBtn.addEventListener('click', () => {
+    criteria.forEach(c => { const el = document.getElementById(c.id); if (el) el.checked = false; });
+    calc();
+  });
+  left.appendChild(resetBtn);
 
   const right = document.createElement('div');
   right.className = 'calc-result-box';
@@ -371,6 +451,16 @@ function _buildWellsPanel() {
     grp.appendChild(cb); grp.appendChild(lbl);
     left.appendChild(grp);
   });
+
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'btn btn-secondary btn-sm';
+  resetBtn.textContent = 'Reset';
+  resetBtn.style.marginTop = '8px';
+  resetBtn.addEventListener('click', () => {
+    criteria.forEach(c => { const el = document.getElementById(c.id); if (el) el.checked = false; });
+    calc();
+  });
+  left.appendChild(resetBtn);
 
   const right = document.createElement('div');
   right.className = 'calc-result-box';
@@ -533,7 +623,24 @@ function _buildFraminghamPanel() {
     catEl.style.fontWeight = '600';
   }
 
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'btn btn-secondary btn-sm';
+  resetBtn.textContent = 'Reset';
+  resetBtn.style.marginTop = '12px';
+  resetBtn.addEventListener('click', () => {
+    ['frs-age','frs-chol','frs-hdl','frs-sbp'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['frs-sex','frs-bptx'].forEach(id => { const el = document.getElementById(id); if (el) el.selectedIndex = 0; });
+    ['frs-smoker','frs-dm'].forEach(id => { const el = document.getElementById(id); if (el) el.checked = false; });
+    right.querySelector('.calc-result-value').textContent = '—';
+    right.querySelector('.calc-result-category').textContent = '';
+  });
+  left.appendChild(resetBtn);
+
   setTimeout(() => {
+    // Pre-fill from patient context
+    const ctx = _getCalcPatientContext();
+    if (ctx.age) { const el = document.getElementById('frs-age'); if (el && !el.value) el.value = ctx.age; }
+    if (ctx.sex) { const el = document.getElementById('frs-sex'); if (el) el.value = ctx.sex; }
     ['frs-age','frs-chol','frs-hdl','frs-sbp'].forEach(id => {
       document.getElementById(id)?.addEventListener('input', calc);
     });

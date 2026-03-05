@@ -17,14 +17,27 @@ function getMonday(date) {
 }
 
 function formatWeekRange(monday) {
-  const fri = new Date(monday);
-  fri.setDate(fri.getDate() + 4);
+  const sun = new Date(monday);
+  sun.setDate(sun.getDate() + 6);
   const opts = { month: 'short', day: 'numeric' };
   const yearOpts = { month: 'short', day: 'numeric', year: 'numeric' };
-  if (monday.getFullYear() === fri.getFullYear()) {
-    return monday.toLocaleDateString('en-US', opts) + ' – ' + fri.toLocaleDateString('en-US', yearOpts);
+  if (monday.getFullYear() === sun.getFullYear()) {
+    return monday.toLocaleDateString('en-US', opts) + ' – ' + sun.toLocaleDateString('en-US', yearOpts);
   }
-  return monday.toLocaleDateString('en-US', yearOpts) + ' – ' + fri.toLocaleDateString('en-US', yearOpts);
+  return monday.toLocaleDateString('en-US', yearOpts) + ' – ' + sun.toLocaleDateString('en-US', yearOpts);
+}
+
+function checkAppointmentConflict(providerId, dateTime, duration, excludeId) {
+  const appts = getAppointmentsByProvider(providerId).filter(a =>
+    a.id !== excludeId && a.status !== 'Cancelled' && a.status !== 'No-Show'
+  );
+  const newStart = new Date(dateTime).getTime();
+  const newEnd   = newStart + (duration || 30) * 60 * 1000;
+  return appts.filter(a => {
+    const aStart = new Date(a.dateTime).getTime();
+    const aEnd   = aStart + (a.duration || 30) * 60 * 1000;
+    return newStart < aEnd && newEnd > aStart;
+  });
 }
 
 function formatTimeSlot(hour, min) {
@@ -168,16 +181,17 @@ function buildWeekGrid(weekStart, providerFilter) {
   corner.className = 'schedule-corner';
   grid.appendChild(corner);
 
-  // Day headers (Mon-Fri)
-  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  // Day headers (Mon-Sun)
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const dayDates = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 7; i++) {
     const d = new Date(weekStart);
     d.setDate(d.getDate() + i);
     dayDates.push(d);
     const hdr = document.createElement('div');
     hdr.className = 'schedule-day-header';
     if (d.getTime() === today.getTime()) hdr.classList.add('today');
+    if (i >= 5) hdr.classList.add('weekend');
     hdr.textContent = dayNames[i] + ' ' + (d.getMonth() + 1) + '/' + d.getDate();
     grid.appendChild(hdr);
   }
@@ -192,7 +206,7 @@ function buildWeekGrid(weekStart, providerFilter) {
       grid.appendChild(label);
 
       // Day cells
-      for (let dayIdx = 0; dayIdx < 5; dayIdx++) {
+      for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
         const cell = document.createElement('div');
         cell.className = 'schedule-cell';
 
@@ -371,19 +385,45 @@ function openAppointmentModal(prefill) {
       showToast('Patient, provider, and date/time are required.', 'error');
       return;
     }
-    saveAppointment({
-      id:        isEdit ? appt.id : undefined,
-      patientId,
-      providerId,
-      dateTime:  new Date(dtVal).toISOString(),
-      duration:  parseInt(document.getElementById('appt-duration').value, 10),
-      visitType: document.getElementById('appt-type').value,
-      status:    document.getElementById('appt-status').value,
-      reason:    document.getElementById('appt-reason').value.trim(),
-    });
-    closeModal();
-    showToast(isEdit ? 'Appointment updated.' : 'Appointment created.', 'success');
-    renderSchedule();
+
+    const duration = parseInt(document.getElementById('appt-duration').value, 10);
+    const dateTime = new Date(dtVal).toISOString();
+
+    // Conflict detection
+    const conflicts = checkAppointmentConflict(providerId, dateTime, duration, isEdit ? appt.id : null);
+    const doSave = () => {
+      saveAppointment({
+        id:        isEdit ? appt.id : undefined,
+        patientId,
+        providerId,
+        dateTime,
+        duration,
+        visitType: document.getElementById('appt-type').value,
+        status:    document.getElementById('appt-status').value,
+        reason:    document.getElementById('appt-reason').value.trim(),
+      });
+      closeModal();
+      showToast(isEdit ? 'Appointment updated.' : 'Appointment created.', 'success');
+      renderSchedule();
+    };
+
+    if (conflicts.length > 0) {
+      const conflictNames = conflicts.map(c => {
+        const p = getPatient(c.patientId);
+        const t = new Date(c.dateTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        return (p ? p.lastName + ', ' + p.firstName : 'Unknown') + ' at ' + t;
+      }).join('; ');
+      closeModal();
+      confirmAction({
+        title: 'Scheduling Conflict',
+        message: 'This provider already has an overlapping appointment: ' + conflictNames + '. Schedule anyway?',
+        confirmLabel: 'Schedule Anyway',
+        danger: true,
+        onConfirm: doSave,
+      });
+    } else {
+      doSave();
+    }
   });
 }
 
@@ -418,6 +458,7 @@ function openAppointmentDetailModal(apptId) {
     <div style="display:flex;gap:6px;flex-wrap:wrap;flex:1">
       ${statusButtons}
     </div>
+    ${patient ? '<button class="btn btn-primary btn-sm" id="appt-det-chart">Open Chart</button>' : ''}
     <button class="btn btn-secondary btn-sm" id="appt-det-edit">Edit</button>
     <button class="btn btn-danger btn-sm" id="appt-det-delete">Delete</button>
     <button class="btn btn-secondary btn-sm" id="appt-det-close">Close</button>
@@ -434,6 +475,13 @@ function openAppointmentDetailModal(apptId) {
   document.getElementById('appt-det-status').textContent = appt.status;
 
   document.getElementById('appt-det-close').addEventListener('click', closeModal);
+
+  if (patient && document.getElementById('appt-det-chart')) {
+    document.getElementById('appt-det-chart').addEventListener('click', () => {
+      closeModal();
+      navigate('#chart/' + appt.patientId);
+    });
+  }
 
   document.getElementById('appt-det-edit').addEventListener('click', () => {
     closeModal();

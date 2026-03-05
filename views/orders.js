@@ -221,8 +221,16 @@ function renderOrderList(container, encounterId) {
         cancelBtn.className = 'btn btn-danger btn-sm';
         cancelBtn.textContent = 'Cancel';
         cancelBtn.onclick = () => {
-          updateOrderStatus(order.id, 'Cancelled');
-          refreshOrderList();
+          confirmAction({
+            title: 'Cancel Order',
+            message: 'Cancel this ' + order.type + ' order? This action cannot be undone.',
+            confirmLabel: 'Cancel Order',
+            danger: true,
+            onConfirm: () => {
+              updateOrderStatus(order.id, 'Cancelled');
+              refreshOrderList();
+            },
+          });
         };
         actionsEl.appendChild(cancelBtn);
       }

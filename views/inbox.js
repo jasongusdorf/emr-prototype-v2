@@ -74,11 +74,16 @@ function renderInbox() {
   tabDefs.forEach(t => {
     const btn = document.createElement('button');
     btn.className = 'inbox-tab' + (_inboxTab === t.key ? ' active' : '');
+    btn.setAttribute('data-inbox-tab', t.key);
     btn.textContent = t.label + ' ';
 
     const badge = document.createElement('span');
     badge.className = 'tab-badge';
-    badge.textContent = t.count;
+    if (t.count > 0) {
+      badge.textContent = t.count;
+    } else {
+      badge.style.display = 'none';
+    }
     btn.appendChild(badge);
 
     btn.addEventListener('click', () => { _inboxTab = t.key; renderInbox(); });
@@ -168,6 +173,11 @@ function openLabReviewModal(labId) {
   });
   testsHTML += '</tbody></table>';
 
+  // Get reviewer identity
+  const currentProv = getCurrentProvider();
+  const reviewer = currentProv ? getProvider(currentProv) : null;
+  const reviewerName = reviewer ? reviewer.firstName + ' ' + reviewer.lastName + ', ' + reviewer.degree : 'Current User';
+
   const bodyHTML = `
     <div style="margin-bottom:12px">
       <strong>Patient:</strong> <span id="lab-rev-patient"></span><br>
@@ -176,6 +186,13 @@ function openLabReviewModal(labId) {
       <strong>Notes:</strong> <span id="lab-rev-notes"></span>
     </div>
     <div class="table-wrap">${testsHTML}</div>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">Reviewing as: <strong>${esc(reviewerName)}</strong></div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Review Comment (optional)</label>
+        <textarea class="form-control" id="lab-rev-comment" rows="2" placeholder="Add a comment about these results..."></textarea>
+      </div>
+    </div>
   `;
 
   openModal({
@@ -192,11 +209,12 @@ function openLabReviewModal(labId) {
 
   document.getElementById('lab-rev-close').addEventListener('click', closeModal);
   document.getElementById('lab-rev-mark').addEventListener('click', () => {
-    const currentProv = getCurrentProvider();
+    const comment = (document.getElementById('lab-rev-comment')?.value || '').trim();
     saveLabResult({
       id: lab.id,
       reviewedBy: currentProv || 'Current User',
       reviewedAt: new Date().toISOString(),
+      reviewComment: comment || undefined,
     });
     closeModal();
     showToast('Lab result marked as reviewed.', 'success');
@@ -312,15 +330,23 @@ function buildReferralsInbox(card) {
 
     const goBtn = document.createElement('button');
     goBtn.className = 'btn btn-secondary btn-sm';
-    goBtn.textContent = 'View';
+    goBtn.textContent = 'View in Chart';
     goBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (patient) navigate('#chart/' + patient.id);
+      if (patient) {
+        if (typeof _pendingScrollSection !== 'undefined') _pendingScrollSection = 'section-referrals';
+        navigate('#chart/' + patient.id);
+      }
     });
 
     item.appendChild(body);
     item.appendChild(goBtn);
-    item.addEventListener('click', () => { if (patient) navigate('#chart/' + patient.id); });
+    item.addEventListener('click', () => {
+      if (patient) {
+        if (typeof _pendingScrollSection !== 'undefined') _pendingScrollSection = 'section-referrals';
+        navigate('#chart/' + patient.id);
+      }
+    });
     card.appendChild(item);
   });
 }

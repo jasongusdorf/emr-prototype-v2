@@ -164,6 +164,8 @@ function _capitalizeFirst(str) {
 function buildTabBar(patientId, activeTab) {
   const bar = document.createElement('div');
   bar.className = 'chart-tab-bar';
+  bar.setAttribute('role', 'tablist');
+  bar.setAttribute('aria-label', 'Chart sections');
 
   const tabs = [
     { key: 'overview',   label: 'Overview' },
@@ -178,6 +180,8 @@ function buildTabBar(patientId, activeTab) {
     const btn = document.createElement('button');
     btn.className = 'chart-tab' + (activeTab === key ? ' active' : '');
     btn.setAttribute('data-omr-color', key);
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', String(activeTab === key));
     btn.textContent = label;
 
     if (key !== 'overview') {
@@ -216,16 +220,24 @@ function buildTabBar(patientId, activeTab) {
 function buildSubTabBar(patientId) {
   const bar = document.createElement('div');
   bar.className = 'chart-subtab-bar';
+  bar.setAttribute('role', 'tablist');
+  bar.setAttribute('aria-label', 'Overview categories');
 
   OVERVIEW_SUBTABS.forEach(({ key, label, color }) => {
     const btn = document.createElement('button');
     btn.className = 'chart-subtab' + (_currentOverviewSubTab === key ? ' active' : '');
     btn.setAttribute('data-omr-color', color);
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', String(_currentOverviewSubTab === key));
     btn.textContent = label;
     btn.addEventListener('click', () => {
       _currentOverviewSubTab = key;
-      bar.querySelectorAll('.chart-subtab').forEach(b => b.classList.remove('active'));
+      bar.querySelectorAll('.chart-subtab').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+      });
       btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
       _applySubTabFilter();
     });
     bar.appendChild(btn);

@@ -163,7 +163,12 @@ function renderEncounter(encounterId) {
     if (isSigned) {
       const readDiv = document.createElement('div');
       readDiv.className = 'note-readonly';
-      readDiv.textContent = note[f.key] || '(not documented)';
+      if (note[f.key]) {
+        readDiv.textContent = note[f.key];
+      } else {
+        readDiv.textContent = '(not documented)';
+        readDiv.classList.add('note-readonly-empty');
+      }
       section.appendChild(label);
       section.appendChild(readDiv);
     } else {
@@ -407,21 +412,51 @@ function buildVitalsSection(encounter, vitals, isSigned) {
     vFooter.style.display = 'flex'; vFooter.style.justifyContent = 'flex-end';
 
     const saveVitalsBtn = makeEncBtn('Save Vitals', 'btn btn-secondary btn-sm', () => {
-      saveEncounterVitals({
-        encounterId:     encounter.id,
-        patientId:       encounter.patientId,
-        bpSystolic:      document.getElementById('v-bp-sys')?.value.trim()  || '',
-        bpDiastolic:     document.getElementById('v-bp-dia')?.value.trim()  || '',
-        heartRate:       document.getElementById('v-hr')?.value.trim()      || '',
-        respiratoryRate: document.getElementById('v-rr')?.value.trim()      || '',
-        tempF:           document.getElementById('v-temp')?.value.trim()    || '',
-        spo2:            document.getElementById('v-spo2')?.value.trim()    || '',
-        weightLbs:       document.getElementById('v-weight')?.value.trim()  || '',
-        heightIn:        document.getElementById('v-height')?.value.trim()  || '',
-        recordedAt:      new Date().toISOString(),
-        recordedBy:      encounter.providerId,
+      // Soft range warnings
+      const vitalsToCheck = [
+        { id: 'v-bp-sys', label: 'Systolic BP',  low: 70,  high: 200 },
+        { id: 'v-bp-dia', label: 'Diastolic BP', low: 30,  high: 130 },
+        { id: 'v-hr',     label: 'Heart Rate',   low: 30,  high: 200 },
+        { id: 'v-rr',     label: 'Resp. Rate',   low: 6,   high: 40  },
+        { id: 'v-temp',   label: 'Temperature',  low: 93,  high: 106 },
+        { id: 'v-spo2',   label: 'SpO2',         low: 50,  high: 100 },
+      ];
+      const warnings = [];
+      vitalsToCheck.forEach(v => {
+        const val = parseFloat(document.getElementById(v.id)?.value);
+        if (!isNaN(val) && (val < v.low || val > v.high)) {
+          warnings.push(v.label + ': ' + val + ' (expected ' + v.low + '–' + v.high + ')');
+        }
       });
-      showToast('Vitals saved.', 'success');
+      function doSaveVitals() {
+        saveEncounterVitals({
+          encounterId:     encounter.id,
+          patientId:       encounter.patientId,
+          bpSystolic:      document.getElementById('v-bp-sys')?.value.trim()  || '',
+          bpDiastolic:     document.getElementById('v-bp-dia')?.value.trim()  || '',
+          heartRate:       document.getElementById('v-hr')?.value.trim()      || '',
+          respiratoryRate: document.getElementById('v-rr')?.value.trim()      || '',
+          tempF:           document.getElementById('v-temp')?.value.trim()    || '',
+          spo2:            document.getElementById('v-spo2')?.value.trim()    || '',
+          weightLbs:       document.getElementById('v-weight')?.value.trim()  || '',
+          heightIn:        document.getElementById('v-height')?.value.trim()  || '',
+          recordedAt:      new Date().toISOString(),
+          recordedBy:      encounter.providerId,
+        });
+        showToast('Vitals saved.', 'success');
+        // Re-render to show updated vitals display
+        renderEncounter(encounter.id);
+      }
+      if (warnings.length > 0) {
+        confirmAction({
+          title: 'Unusual Vitals Values',
+          message: 'The following values are outside normal physiological range:\n\n' + warnings.join('\n') + '\n\nSave anyway?',
+          confirmLabel: 'Save Anyway',
+          onConfirm: doSaveVitals,
+        });
+      } else {
+        doSaveVitals();
+      }
     });
 
     vFooter.appendChild(saveVitalsBtn);
@@ -457,6 +492,14 @@ function buildAddendaSection(encounterId, note, encounter) {
   const addenda = Array.isArray(note.addenda) ? note.addenda : [];
   const addendaList = document.createElement('div');
   addendaList.id = 'addenda-list';
+
+  if (addenda.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'text-muted text-sm';
+    empty.style.padding = '8px 0';
+    empty.textContent = 'No addenda.';
+    addendaList.appendChild(empty);
+  }
 
   addenda.forEach(ad => {
     addendaList.appendChild(renderAddendumItem(ad));
@@ -704,7 +747,11 @@ function buildMedRecBanner(encounter, note) {
       expandBtn.textContent = open ? 'Reconcile ▾' : 'Collapse ▴';
     }
   });
-  const dismissBtn = makeEncBtn('Dismiss', 'btn btn-ghost btn-sm', () => { banner.remove(); });
+  const dismissBtn = makeEncBtn('Dismiss', 'btn btn-ghost btn-sm', () => {
+    // Persist dismissal so banner doesn't reappear on reload
+    saveMedRec({ encounterId: encounter.id, medName: '__dismissed__', action: 'Dismissed', notes: '' });
+    banner.remove();
+  });
 
   btns.appendChild(expandBtn); btns.appendChild(dismissBtn);
   hdr.appendChild(title); hdr.appendChild(btns);
@@ -994,6 +1041,7 @@ function openDiagnosisEntry(encounter) {
     if (!code || !description) { showToast('Code and description are required.', 'error'); return; }
 
     const diagnoses = encounter.diagnoses || [];
+    if (diagnoses.some(d => d.code === code)) { showToast('Diagnosis code ' + code + ' already added.', 'error'); return; }
     const primary = document.getElementById('dx-primary').checked;
     if (primary) diagnoses.forEach(d => d.primary = false);
     diagnoses.push({ code, description, primary });
@@ -1049,6 +1097,7 @@ function openCPTEntry(encounter) {
     if (!code || !description) { showToast('Code and description are required.', 'error'); return; }
 
     const cptCodes = encounter.cptCodes || [];
+    if (cptCodes.some(c => c.code === code)) { showToast('CPT code ' + code + ' already added.', 'error'); return; }
     cptCodes.push({ code, description });
     saveEncounter({ id: encounter.id, cptCodes });
     closeModal();

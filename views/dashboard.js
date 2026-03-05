@@ -57,9 +57,24 @@ function renderDashboard() {
     ];
   }
 
+  // Make stats clickable where they link to inbox tabs
+  const statActions = {
+    'Unsigned Notes':      () => { navigate('#inbox'); setTimeout(() => { const t = document.querySelector('[data-inbox-tab="notes"]'); if (t) t.click(); }, 100); },
+    'Pending Orders':      () => { navigate('#inbox'); setTimeout(() => { const t = document.querySelector('[data-inbox-tab="orders"]'); if (t) t.click(); }, 100); },
+    'Overdue Screenings':  null,
+    'Total Patients':      null,
+    'Census Count':        null,
+    'Active Admissions':   null,
+  };
+
   stats.forEach(s => {
     const stat = document.createElement('div');
     stat.className = 'summary-stat';
+    if (statActions[s.label] && s.value > 0) {
+      stat.classList.add('summary-stat-clickable');
+      stat.title = 'Click to view ' + s.label.toLowerCase();
+      stat.addEventListener('click', statActions[s.label]);
+    }
     const val = document.createElement('div');
     val.className = 'summary-stat-value' + (s.cls ? ' ' + s.cls : '');
     val.textContent = s.value;
@@ -80,18 +95,25 @@ function renderDashboard() {
       .sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime))
       .slice(0, 10);
 
-    if (upcomingAppts.length > 0) {
-      const apptCard = document.createElement('div');
-      apptCard.className = 'card';
-      apptCard.style.marginBottom = '16px';
-      const apptHdr = document.createElement('div');
-      apptHdr.className = 'card-header';
-      const apptTitle = document.createElement('span');
-      apptTitle.className = 'card-title';
-      apptTitle.textContent = 'Upcoming Appointments';
-      apptHdr.appendChild(apptTitle);
-      apptCard.appendChild(apptHdr);
+    const apptCard = document.createElement('div');
+    apptCard.className = 'card';
+    apptCard.style.marginBottom = '16px';
+    const apptHdr = document.createElement('div');
+    apptHdr.className = 'card-header';
+    const apptTitle = document.createElement('span');
+    apptTitle.className = 'card-title';
+    apptTitle.textContent = 'Upcoming Appointments';
+    const schedLink = document.createElement('button');
+    schedLink.className = 'btn btn-secondary btn-sm';
+    schedLink.textContent = 'View Schedule';
+    schedLink.onclick = () => navigate('#schedule');
+    apptHdr.appendChild(apptTitle);
+    apptHdr.appendChild(schedLink);
+    apptCard.appendChild(apptHdr);
 
+    if (upcomingAppts.length === 0) {
+      apptCard.appendChild(buildEmptyState('📅', 'No upcoming appointments', 'Schedule an appointment from the Schedule tab.'));
+    } else {
       upcomingAppts.forEach(appt => {
         const patient = getPatient(appt.patientId);
         const provider = getProvider(appt.providerId);
@@ -118,8 +140,8 @@ function renderDashboard() {
         item.appendChild(prov);
         apptCard.appendChild(item);
       });
-      app.appendChild(apptCard);
     }
+    app.appendChild(apptCard);
   }
 
   // ===== Search bar + My Patients/Census toggle =====
@@ -181,7 +203,7 @@ function renderDashboard() {
 
   const table = document.createElement('table');
   table.className = 'table';
-  const colCount = isInpatient ? 7 : 8;
+  const colCount = isInpatient ? 7 : 9;
 
   if (isInpatient) {
     table.innerHTML = `<thead><tr>
@@ -189,7 +211,7 @@ function renderDashboard() {
     </tr></thead>`;
   } else {
     table.innerHTML = `<thead><tr>
-      <th>Name</th><th>MRN</th><th>DOB</th><th>Sex</th><th>Phone</th><th>Insurance</th><th>Alerts</th><th></th>
+      <th>Name</th><th>MRN</th><th>DOB</th><th>Age</th><th>Sex</th><th>Phone</th><th>Insurance</th><th>Alerts</th><th></th>
     </tr></thead>`;
   }
 
@@ -212,8 +234,20 @@ function renderDashboard() {
     return list;
   }
 
+  function _calcAge(dob) {
+    if (!dob) return '—';
+    const d = new Date(dob + 'T00:00:00');
+    if (isNaN(d)) return '—';
+    const today = new Date();
+    let age = today.getFullYear() - d.getFullYear();
+    const m = today.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+    return age;
+  }
+
   function renderRows(list) {
     tbody.innerHTML = '';
+    const searchQ = (document.getElementById('patient-search')?.value || '').trim();
     if (list.length === 0) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
@@ -221,7 +255,13 @@ function renderDashboard() {
       td.style.textAlign = 'center';
       td.style.padding = '32px';
       td.style.color = 'var(--text-muted)';
-      td.textContent = isInpatient ? 'No inpatient admissions.' : 'No patients found.';
+      if (searchQ) {
+        td.textContent = 'No results for "' + searchQ + '" — try a different search.';
+      } else if (isInpatient) {
+        td.textContent = 'No inpatient admissions.';
+      } else {
+        td.textContent = 'No patients registered yet. Click "+ New Patient" to get started.';
+      }
       tr.appendChild(td);
       tbody.appendChild(tr);
       return;
@@ -292,6 +332,7 @@ function renderDashboard() {
         tr.appendChild(tdActions);
       } else {
         const tdDob  = createTd(formatDate(pat.dob));
+        const tdAge  = createTd(String(_calcAge(pat.dob)));
         const tdSex  = createTd(pat.sex);
         const tdPhone = createTd(pat.phone);
         const tdIns  = createTd(pat.insurance);
@@ -333,9 +374,17 @@ function renderDashboard() {
         // Actions
         const tdActions = document.createElement('td');
         tdActions.style.textAlign = 'right';
+        tdActions.style.whiteSpace = 'nowrap';
+
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'btn btn-primary btn-sm';
+        viewBtn.textContent = 'View';
+        viewBtn.onclick = () => navigate('#chart/' + pat.id);
+        tdActions.appendChild(viewBtn);
 
         const editBtn = document.createElement('button');
         editBtn.className = 'btn btn-secondary btn-sm';
+        editBtn.style.marginLeft = '6px';
         editBtn.setAttribute('data-action', 'edit');
         editBtn.setAttribute('data-id', pat.id);
         editBtn.textContent = 'Edit';
@@ -352,6 +401,7 @@ function renderDashboard() {
         tr.appendChild(tdName);
         tr.appendChild(tdMrn);
         tr.appendChild(tdDob);
+        tr.appendChild(tdAge);
         tr.appendChild(tdSex);
         tr.appendChild(tdPhone);
         tr.appendChild(tdIns);
@@ -465,7 +515,7 @@ function openNewPatientModal() {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Date of Birth *</label>
-        <input class="form-control" id="np-dob" type="date" />
+        <input class="form-control" id="np-dob" type="date" max="${new Date().toISOString().slice(0, 10)}" />
       </div>
       <div class="form-group">
         <label class="form-label">Sex</label>
@@ -560,6 +610,28 @@ function openNewPatientModal() {
 
     if (!firstName || !lastName || !dob) {
       showToast('First name, last name, and date of birth are required.', 'error');
+      return;
+    }
+
+    // Duplicate patient detection
+    const existing = getPatients().find(p =>
+      p.firstName.toLowerCase() === firstName.toLowerCase() &&
+      p.lastName.toLowerCase() === lastName.toLowerCase() &&
+      p.dob === dob
+    );
+    if (existing && !document.getElementById('np-dupe-confirmed')) {
+      const warn = document.createElement('div');
+      warn.style.cssText = 'background:var(--warning-light,#fffceb);color:var(--warning,#b45309);padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:13px';
+      warn.id = 'np-dupe-warn';
+      warn.innerHTML = '<strong>Possible duplicate:</strong> ' + esc(existing.firstName) + ' ' + esc(existing.lastName) + ' (' + existing.mrn + ') born ' + formatDate(existing.dob) + '.<br>Click "Register Patient" again to create anyway.';
+      const old = document.getElementById('np-dupe-warn');
+      if (old) old.remove();
+      document.getElementById('modal-body').prepend(warn);
+      // Mark that we warned — next click proceeds
+      const marker = document.createElement('input');
+      marker.type = 'hidden';
+      marker.id = 'np-dupe-confirmed';
+      document.getElementById('modal-body').appendChild(marker);
       return;
     }
 
